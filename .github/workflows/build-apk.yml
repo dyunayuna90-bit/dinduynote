@@ -17,13 +17,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          # cache: 'npm'  <-- INI YG DIHAPUS, BIAR GAK REWEL
 
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
       - name: Build Web Project
-        # CI=false ini kunci biar dia gak rewel sama warning kecil
         run: CI=false npm run build
 
       - name: Setup Java
