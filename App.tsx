@@ -1035,7 +1035,10 @@ const NoteCard = ({ note, onClick, onDelete, onRestore, inFolder, isDark, colors
   const onPanStart = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }
   // FIX: Allow swipe deletion even in Trash (to "wipe" delete)
   const onDragEnd = (event: any, info: PanInfo) => { if (Math.abs(info.offset.x) > 100 && !isSelectionMode) { onDelete(); } };
+  
   const previewText = note.content.replace(/<[^>]+>/g, ' ').trim() || "No content";
+  // MODIFICATION: Limit peek text to 150 characters
+  const truncatedPreview = previewText.length > 150 ? previewText.substring(0, 150) + "..." : previewText;
 
   return (
     <motion.div layout layoutId={`note-${note.id}`} transition={springTransition} className={`${safeIsPeeking ? 'col-span-2 row-span-2' : 'col-span-1 aspect-square'}`} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp} style={{ zIndex: safeIsPeeking ? 50 : 1, position: 'relative' }}>
@@ -1051,7 +1054,15 @@ const NoteCard = ({ note, onClick, onDelete, onRestore, inFolder, isDark, colors
             className={`w-full h-full relative cursor-pointer group overflow-hidden ${themeClass} ${note.shape} ${isSelected ? `ring-4 ${theme.ring} ring-offset-2 ring-offset-transparent` : ''} ${safeIsPeeking ? 'shadow-2xl' : ''}`}
         >
            <div className="p-5 h-full flex flex-col relative pointer-events-none"> 
-               {safeIsPeeking ? ( <div className="flex flex-col h-full overflow-hidden"> <h3 className="text-3xl font-bold mb-4 leading-tight">{note.title || "Untitled"}</h3> <div className="text-lg opacity-80 leading-relaxed overflow-hidden max-h-[300px]\">{previewText}</div> </div> ) : ( <><h3 className="text-xl font-bold leading-tight line-clamp-2 relative z-10">{note.title || "Untitled"}</h3> {note.isPinned && <div className="absolute top-4 right-4 text-yellow-500 bg-black/10 rounded-full p-1"><Star fill="currentColor" size={12}/></div>} <div className="absolute bottom-4 right-4 opacity-10">{Icon && <Icon size={80} />}</div></> )}
+               {safeIsPeeking ? ( 
+                 <div className="flex flex-col h-full overflow-hidden"> 
+                   <h3 className="text-3xl font-bold mb-4 leading-tight">{note.title || "Untitled"}</h3> 
+                   {/* MODIFICATION: Use truncated text */}
+                   <div className="text-lg opacity-80 leading-relaxed overflow-hidden max-h-[300px]">{truncatedPreview}</div> 
+                 </div> 
+               ) : ( 
+                 <><h3 className="text-xl font-bold leading-tight line-clamp-2 relative z-10">{note.title || "Untitled"}</h3> {note.isPinned && <div className="absolute top-4 right-4 text-yellow-500 bg-black/10 rounded-full p-1"><Star fill="currentColor" size={12}/></div>} <div className="absolute bottom-4 right-4 opacity-10">{Icon && <Icon size={80} />}</div></> 
+               )}
                {isSelected && <div className={`absolute top-4 left-4 ${theme.bg} text-white p-1 rounded-full`}><Check size={16}/></div>}
            </div>
            {isTrash && ( <button onClick={(e) => {e.stopPropagation(); onRestore()}} className="absolute bottom-3 right-3 p-2 bg-white/20 rounded-full backdrop-blur pointer-events-auto"><RefreshCcw size={18}/></button> )}
