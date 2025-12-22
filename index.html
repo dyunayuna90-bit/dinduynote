@@ -7,70 +7,14 @@
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
     <meta name="description" content="Desnote - Offline Capable Note App">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Desnote">
-    <link rel="apple-touch-icon" href="/pwa-192x192.png">
     
     <title>Desnote</title>
+    <!-- Tailwind via CDN for quick proto -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      :root {
-        --bg-color: #ffffff;
-        --text-color: #1a1c1e;
-      }
-      body.dark {
-        --bg-color: #121212;
-        --text-color: #f0f0f0;
-      }
-      body {
-        font-family: 'Outfit', sans-serif;
-        background-color: var(--bg-color);
-        color: var(--text-color);
-        overflow-x: hidden;
-        -webkit-tap-highlight-color: transparent;
-        transition: background-color 0.5s ease, color 0.5s ease;
-        overscroll-behavior-y: none;
-      }
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #ccc;
-        border-radius: 10px;
-      }
-      body.dark ::-webkit-scrollbar-thumb {
-        background: #333;
-      }
-      .content-editable:empty:before {
-        content: attr(placeholder);
-        color: inherit;
-        opacity: 0.5;
-        pointer-events: none;
-        display: block; 
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.25"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  </head>
   <body>
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
 </html>
