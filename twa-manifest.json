@@ -1,0 +1,23 @@
+{
+  "packageId": "com.dinduynote.app",
+  "host": "dinduynote-eight.vercel.app",
+  "name": "DinduyNote",
+  "launcherName": "DinduyNote",
+  "themeColor": "#ffffff",
+  "navigationColor": "#ffffff",
+  "navigationColorDark": "#0d1117",
+  "backgroundColor": "#ffffff",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://dinduynote-eight.vercel.app/pwa-512x512.png",
+  "maskableIconUrl": "https://dinduynote-eight.vercel.app/mask-icon.svg",
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "android-keystore.jks",
+    "alias": "android"
+  },
+  "generatorApp": "bubblewrap-cli"
+}
