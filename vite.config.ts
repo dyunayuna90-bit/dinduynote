@@ -36,8 +36,7 @@ export default defineConfig(({ mode }) => {
               },
               {
                 src: 'pwa-512x512.png',
-                sizes: '512x512',
-                type: 'image/png'
+                sizes: '512x512',\n                type: 'image/png'
               }
             ]
           },
@@ -82,7 +81,7 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.'),
+          '@': path.resolve(__dirname, './src')
         }
       }
     };
