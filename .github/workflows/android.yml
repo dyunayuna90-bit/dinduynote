@@ -1,0 +1,32 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: Build APK
+        # Ini bakal generate keystore dummy buat signing APK
+        run: |
+          keytool -genkeypair -v -keystore android-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias android -dname "CN=DinduyNote, OU=Engineering, O=Desnote, L=Jakarta, ST=DKI Jakarta, C=ID" -storepass password -keypass password
+          bubblewrap build --manifest twa-manifest.json --skipPwaValidation
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: ./*.apk
