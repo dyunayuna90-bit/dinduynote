@@ -9,10 +9,18 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      # INI PENTING: Kita siapin Java 17 dulu secara eksplisit.
+      # Biar Bubblewrap tau Java udah ada dan gak rewel minta install.
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
 
@@ -20,9 +28,8 @@ jobs:
         run: npm install -g @bubblewrap/cli
 
       - name: Build APK
-        # Gw tambahin "yes |" di depan bubblewrap
-        # Ini bakal otomatis jawab "Y" buat install JDK & Android SDK
-        # Keytool juga gw kasih "-noprompt" biar ga bawel
+        # "yes |" gw pasang buat auto-accept license Android SDK kalau muncul.
+        # Keytool buat bikin sertifikat digital (keystore) dummy.
         run: |
           keytool -genkeypair -v -keystore android-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias android -dname "CN=DinduyNote, OU=Engineering, O=Desnote, L=Jakarta, ST=DKI Jakarta, C=ID" -storepass password -keypass password
           yes | bubblewrap build --manifest twa-manifest.json --skipPwaValidation
