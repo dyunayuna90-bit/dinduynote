@@ -20,10 +20,12 @@ jobs:
         run: npm install -g @bubblewrap/cli
 
       - name: Build APK
-        # Ini bakal generate keystore dummy buat signing APK
+        # Gw tambahin "yes |" di depan bubblewrap
+        # Ini bakal otomatis jawab "Y" buat install JDK & Android SDK
+        # Keytool juga gw kasih "-noprompt" biar ga bawel
         run: |
           keytool -genkeypair -v -keystore android-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias android -dname "CN=DinduyNote, OU=Engineering, O=Desnote, L=Jakarta, ST=DKI Jakarta, C=ID" -storepass password -keypass password
-          bubblewrap build --manifest twa-manifest.json --skipPwaValidation
+          yes | bubblewrap build --manifest twa-manifest.json --skipPwaValidation
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
