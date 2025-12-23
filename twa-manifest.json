@@ -1,5 +1,5 @@
 {
-  "packageId": "com.dinduynote.app",
+  "packageId": "app.vercel.dinduynote_otwz.twa",
   "host": "dinduynote-eight.vercel.app",
   "name": "DinduyNote",
   "launcherName": "DinduyNote",
@@ -15,8 +15,8 @@
   "shortcuts": [],
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
-    "path": "android-keystore.jks",
-    "alias": "android"
+    "path": "signing.keystore",
+    "alias": "my-key-alias"
   },
   "generatorApp": "bubblewrap-cli"
 }
