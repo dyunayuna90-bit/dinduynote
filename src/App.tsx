@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence, LayoutGroup, PanInfo, useDragControls, useScroll, useTransform } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup, PanInfo, useDragControls, useScroll, useTransform, useAnimation } from 'framer-motion';
 import { 
   ArrowLeft, Bold, Italic, Underline, List, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Trash2, X, Palette, Sun, Moon, Folder as FolderIcon,
@@ -10,7 +10,7 @@ import {
   Zap, Coffee, Cloud, Music, Camera, MapPin, Smile, Book, Anchor, Feather, Key, Gift, Bell, Crown, 
   Gamepad, Headphones, Umbrella, Scissors, Atom, FlaskConical, Dna, Microscope, Calculator, 
   Sigma, Brain, Globe, Hourglass, Compass, Telescope, GraduationCap, Archive, Grid, Layout, Clock, AlertTriangle, MoreVertical,
-  FilePlus, FolderPlus, Sparkles, Wand2, Languages, Eraser, Bot, Loader2, Copy, Eye, EyeOff, Save, Type, Image as ImageIcon, Crop, Move, Maximize, CheckSquare
+  FilePlus, FolderPlus, Sparkles, Wand2, Languages, Eraser, Bot, Loader2, Copy, Eye, EyeOff, Save, Type, Image as ImageIcon, Crop, Move, Maximize, CheckSquare, ChevronUp, Send, ChevronDown
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,11 +29,10 @@ export interface Folder {
   isPinned?: boolean; isDeleted?: boolean;
 }
 
-// --- CONSTANTS (HEAVY GRAVITY PHYSICS) ---
-const springTransition = { type: "spring", stiffness: 600, damping: 35, mass: 1.2 }; 
+// --- CONSTANTS ---
+const springTransition = { type: "spring", stiffness: 500, damping: 30, mass: 1 }; 
 
 export const APP_THEMES: Record<AppThemeColor, { bg: string, text: string, ring: string, hover: string, border: string, lightBg: string, tabActive: string, headerText: string }> = {
-    // FIX: Default Dark Mode Header Text Logic
     default: { bg: 'bg-zinc-900', text: 'text-zinc-900', ring: 'ring-zinc-900', hover: 'hover:bg-zinc-100', border: 'border-zinc-200', lightBg: 'bg-[#f8f9fa]', tabActive: '!bg-zinc-900 !text-white', headerText: 'text-zinc-900 dark:text-white' },
     violet: { bg: 'bg-violet-600', text: 'text-violet-600', ring: 'ring-violet-600', hover: 'hover:bg-violet-50', border: 'border-violet-200', lightBg: 'bg-violet-100', tabActive: '!bg-violet-600 !text-white', headerText: 'text-violet-600 dark:text-violet-400' },
     blue:   { bg: 'bg-blue-600', text: 'text-blue-600', ring: 'ring-blue-600', hover: 'hover:bg-blue-50', border: 'border-blue-200', lightBg: 'bg-blue-100', tabActive: '!bg-blue-600 !text-white', headerText: 'text-blue-600 dark:text-blue-400' },
@@ -93,7 +92,6 @@ export const ICONS: Record<string, React.ElementType> = {
 
 // --- Custom Hooks ---
 
-// DEBOUNCED LOCAL STORAGE HOOK (PERFORMANCE FIX)
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [value, setValue] = useState<T>(() => {
     try {
@@ -114,7 +112,7 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<R
         } catch (error) {
             console.error("Storage Error", error);
         }
-    }, 500); // Wait 500ms
+    }, 500); 
 
     return () => clearTimeout(handler);
   }, [key, debouncedValue]);
@@ -193,7 +191,6 @@ const generateAIContent = async (prompt: string, apiKey: string) => {
 };
 
 // --- Helper Components ---
-
 const IconButton = ({ onClick, icon: Icon, className = "", active = false, activeClass = "bg-zinc-800 text-white" }: any) => (
   <button 
     onClick={(e) => { e.stopPropagation(); onClick(e); }}
@@ -216,8 +213,126 @@ const ToolbarButton = ({ onClick, icon: Icon, active = false, isDark, appTheme, 
     );
 }
 
-// --- Modals ---
+// --- NEW COMPONENT: DUAL MODE QUICK CARD ---
+const QuickCreateCard = ({ onCreateNote, onCreateFolder, onFullEditor, appTheme, isDark }: any) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [title, setTitle] = useState("");
+    const [content, setContent] = useState("");
+    const theme = APP_THEMES[appTheme as AppThemeColor];
+    const inputRef = useRef<HTMLInputElement>(null);
 
+    const handleQuickSave = () => {
+        if (!title.trim() && !content.trim()) return;
+        onCreateNote(null, title, content);
+        setTitle("");
+        setContent("");
+        setIsOpen(false);
+    };
+
+    // Reset when opening
+    useEffect(() => {
+        if (isOpen) {
+             // Delay focus slightly for animation
+             setTimeout(() => inputRef.current?.focus(), 200);
+        }
+    }, [isOpen]);
+
+    return (
+        <motion.div
+            initial={{ height: 80 }}
+            animate={{ height: isOpen ? '55vh' : 80 }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            className={`fixed bottom-0 left-0 right-0 z-[80] rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] border-t border-black/5 flex flex-col overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-100'}`}
+        >
+            {/* --- COLLAPSED STATE (THE DOCK) --- */}
+            <motion.div 
+                className="w-full h-[80px] flex items-center justify-between px-8 flex-none"
+                // Drag handle behavior
+                drag="y"
+                dragConstraints={{ top: 0, bottom: 0 }}
+                onDragEnd={(e, info) => {
+                    if (info.offset.y < -50) setIsOpen(true);
+                    if (info.offset.y > 50) setIsOpen(false);
+                }}
+            >
+                <AnimatePresence mode="wait">
+                    {!isOpen ? (
+                        <motion.div 
+                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                             className="flex items-center justify-between w-full gap-4"
+                        >
+                            {/* Folder Button */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onCreateFolder(); }}
+                                className={`flex flex-col items-center gap-1 opacity-70 hover:opacity-100 active:scale-90 transition-transform`}
+                            >
+                                <div className={`p-3 rounded-2xl ${isDark ? 'bg-zinc-800' : 'bg-gray-100'}`}>
+                                    <FolderPlus size={24} className={theme.text}/>
+                                </div>
+                                <span className="text-[10px] font-bold">Folder</span>
+                            </button>
+
+                            {/* Center Handle / Hint */}
+                            <div className="flex-1 flex flex-col items-center justify-center opacity-30 cursor-grab active:cursor-grabbing h-full" onClick={() => setIsOpen(true)}>
+                                <div className={`w-12 h-1.5 rounded-full mb-1 ${isDark ? 'bg-white' : 'bg-black'}`} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Swipe Up</span>
+                            </div>
+
+                            {/* Note Button (Full Editor) */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onFullEditor(); }}
+                                className={`flex flex-col items-center gap-1 opacity-70 hover:opacity-100 active:scale-90 transition-transform`}
+                            >
+                                <div className={`p-3 rounded-2xl ${isDark ? 'bg-zinc-800' : 'bg-gray-100'}`}>
+                                    <FileText size={24} className={theme.text}/>
+                                </div>
+                                <span className="text-[10px] font-bold">Full Note</span>
+                            </button>
+                        </motion.div>
+                    ) : (
+                        // Expanded Header
+                        <motion.div 
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="flex items-center justify-between w-full"
+                        >
+                            <span className="font-bold text-lg opacity-50">Quick Note</span>
+                            <div className="w-12 h-1.5 rounded-full opacity-20 bg-current" onClick={() => setIsOpen(false)}/>
+                            <button onClick={() => setIsOpen(false)} className="p-2 rounded-full hover:bg-black/5"><ChevronDown size={24}/></button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+
+            {/* --- EXPANDED STATE (QUICK EDITOR) --- */}
+            <div className="flex-1 px-6 pb-6 flex flex-col gap-4 overflow-hidden">
+                <input
+                    ref={inputRef}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Judul Catatan..."
+                    className={`w-full bg-transparent text-2xl font-bold outline-none placeholder-current/30 flex-none py-2 ${theme.text}`}
+                />
+                <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Tulis ide cepet di sini..."
+                    className={`w-full flex-1 bg-transparent resize-none outline-none leading-relaxed opacity-80 ${isDark ? 'placeholder-zinc-600' : 'placeholder-gray-400'}`}
+                />
+                <div className="flex-none pt-2 flex justify-end">
+                    <button 
+                        onClick={handleQuickSave}
+                        className={`px-6 py-3 rounded-2xl font-bold text-white shadow-lg active:scale-95 transition-all flex items-center gap-2 ${theme.bg}`}
+                    >
+                        <Save size={20} />
+                        <span>Simpan</span>
+                    </button>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+// --- Modals (Settings, etc.) ---
 const AIActionModal = ({ isOpen, onClose, noteContent, onApply, isDark, appTheme, apiKey }: any) => {
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState('');
@@ -292,22 +407,20 @@ const MoveDialog = ({ isOpen, onClose, onConfirm, folders, isDark, selectedCount
     );
 };
 
-// ... (NoteSettingsModal, FolderSettingsModal, SettingsModal logic is same as before, condensed for brevity but included fully in output) ...
 const NoteSettingsModal = ({ isOpen, onClose, note, onUpdate, isDark, colors, appTheme }: any) => { if (!isOpen || !note) return null; const theme = APP_THEMES[appTheme as AppThemeColor]; return ( <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50" onClick={onClose}> <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={springTransition} onClick={e => e.stopPropagation()} className={`w-full max-w-md p-6 rounded-[2rem] shadow-2xl max-h-[85vh] overflow-y-auto ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Note Settings</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-black/5"><X size={24}/></button></div> <div className="mb-6 p-4 rounded-2xl bg-black/5 flex justify-between items-center"> <div className="flex items-center gap-3"><Pin size={20} className={note.isPinned ? theme.text : "opacity-50"} /><span className="font-bold">Pin Note</span></div> <button onClick={() => onUpdate(note.id, { isPinned: !note.isPinned })} className={`w-12 h-7 rounded-full transition-colors relative ${note.isPinned ? theme.bg : 'bg-zinc-300 dark:bg-zinc-700'}`}> <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${note.isPinned ? 'left-6' : 'left-1'}`} /> </button> </div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Color Theme</h4><div className="flex flex-wrap gap-3">{Object.keys(colors).map(c => { const bgClass = LIGHT_COLORS[c as ColorTheme].split(' ')[0]; const isActive = note.color === c; return (<button key={c} onClick={() => onUpdate(note.id, {color: c})} className={`w-10 h-10 rounded-full ${bgClass} ${isActive ? `ring-4 ring-offset-2 ${theme.ring} dark:ring-offset-zinc-900` : ''}`} />) })}</div></div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Shape</h4><div className="grid grid-cols-4 gap-3">{SHAPES.slice(0, 12).map((s,i) => <button key={i} onClick={() => onUpdate(note.id, {shape: s})} className={`h-12 bg-current opacity-10 hover:opacity-30 transition-opacity ${s} ${note.shape === s ? `!opacity-100 ring-2 ${theme.ring}` : ''}`} />)}</div></div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Icon</h4><div className="grid grid-cols-6 gap-2">{Object.keys(ICONS).map(k => { const I = ICONS[k]; return <button key={k} onClick={() => onUpdate(note.id, {icon: k})} className={`p-2 hover:bg-black/5 rounded flex items-center justify-center ${note.icon === k ? `${theme.text} ${theme.bg} bg-opacity-10` : ''}`}><I size={20}/></button> })}</div></div> </motion.div> </div> ); };
 const FolderSettingsModal = ({ isOpen, onClose, folder, onUpdate, isDark, colors, appTheme }: any) => { if (!isOpen || !folder) return null; const theme = APP_THEMES[appTheme as AppThemeColor]; return ( <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50" onClick={onClose}> <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={springTransition} onClick={e => e.stopPropagation()} className={`w-full max-w-md p-6 rounded-[2rem] shadow-2xl max-h-[85vh] overflow-y-auto ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Folder Settings</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-black/5"><X size={24}/></button></div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-2 uppercase tracking-wider">Rename</h4><input value={folder.name} onChange={(e) => onUpdate(folder.id, { name: e.target.value })} className={`w-full p-3 rounded-xl text-lg font-medium outline-none ${isDark ? 'bg-zinc-800 focus:bg-zinc-700' : 'bg-zinc-100 focus:bg-zinc-200'}`} /></div> <div className="mb-6 p-4 rounded-2xl bg-black/5 flex justify-between items-center"> <div className="flex items-center gap-3"><Pin size={20} className={folder.isPinned ? theme.text : "opacity-50"} /><span className="font-bold">Pin Folder</span></div> <button onClick={() => onUpdate(folder.id, { isPinned: !folder.isPinned })} className={`w-12 h-7 rounded-full transition-colors relative ${folder.isPinned ? theme.bg : 'bg-zinc-300 dark:bg-zinc-700'}`}> <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${folder.isPinned ? 'left-6' : 'left-1'}`} /> </button> </div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Color Theme</h4><div className="flex flex-wrap gap-3">{Object.keys(colors).map(c => { const bgClass = LIGHT_COLORS[c as ColorTheme].split(' ')[0]; const isActive = folder.color === c; return (<button key={c} onClick={() => onUpdate(folder.id, {color: c})} className={`w-10 h-10 rounded-full ${bgClass} ${isActive ? `ring-4 ring-offset-2 ${theme.ring} dark:ring-offset-zinc-900` : ''}`} />) })}</div></div> <div><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Shape</h4><div className="grid grid-cols-4 gap-3">{SHAPES.slice(0, 12).map((s,i) => <button key={i} onClick={() => onUpdate(folder.id, {shape: s})} className={`h-12 bg-current opacity-10 hover:opacity-30 transition-opacity ${s} ${folder.shape === s ? `!opacity-100 ring-2 ${theme.ring}` : ''}`} />)}</div></div> </motion.div> </div> ) }
 const SettingsModal = ({ isOpen, onClose, isDark, toggleTheme, onExport, onImport, appTheme, setAppTheme, apiKey, setApiKey }: any) => { const fileInputRef = useRef<HTMLInputElement>(null); const [showKey, setShowKey] = useState(false); const [tempKey, setTempKey] = useState(apiKey); const [isSaved, setIsSaved] = useState(false); useEffect(() => { if (isOpen) setTempKey(apiKey); setIsSaved(false); }, [isOpen, apiKey]); const handleSaveKey = () => { setApiKey(tempKey); setIsSaved(true); setTimeout(() => setIsSaved(false), 2000); }; if (!isOpen) return null; const theme = APP_THEMES[appTheme as AppThemeColor]; return ( <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50" onClick={onClose}> <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={springTransition} onClick={(e) => e.stopPropagation()} className={`w-full max-w-sm p-6 rounded-[2rem] shadow-2xl ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}> <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold tracking-tight">Desnote</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-black/5"><X size={24}/></button></div> <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar"> <div className={`p-4 rounded-2xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Material You Theme</h4><div className="flex flex-wrap gap-2 justify-start">{Object.keys(APP_THEMES).map((key) => { const t = APP_THEMES[key as AppThemeColor]; return (<button key={key} onClick={() => setAppTheme(key)} title={key} className={`w-8 h-8 rounded-full ${t.bg} transition-transform active:scale-90 ${appTheme === key ? 'ring-4 ring-offset-2 ring-current dark:ring-offset-zinc-800' : ''}`} />) })}</div></div> <div className={`p-4 rounded-2xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><Sparkles size={16} className={theme.text}/><h4 className="text-xs font-bold opacity-50 uppercase tracking-wider">Gemini API Key</h4></div>{isSaved && <span className="text-xs text-green-500 font-bold flex items-center gap-1"><Check size={12}/> Saved</span>}</div><div className="flex gap-2"><div className="relative flex-1"><input type={showKey ? "text" : "password"} value={tempKey} onChange={(e) => setTempKey(e.target.value)} placeholder="Paste Key here..." className={`w-full p-3 rounded-xl text-sm font-medium outline-none pr-10 ${isDark ? 'bg-zinc-900 focus:bg-zinc-950' : 'bg-white focus:bg-zinc-50'}`} /><button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-3 opacity-50 hover:opacity-100">{showKey ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div><button onClick={handleSaveKey} className={`p-3 rounded-xl ${theme.bg} text-white hover:opacity-90 transition-opacity active:scale-95`}><Save size={20}/></button></div><p className="text-[10px] mt-2 opacity-60 leading-tight">Key disimpan lokal di perangkat ini.</p></div> <div className="space-y-1"><button onClick={toggleTheme} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-95 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}>{isDark ? <Sun size={22} className="text-yellow-400" /> : <Moon size={22} className={theme.text} />}<span className="font-medium text-lg">{isDark ? 'Light Mode' : 'Dark Mode'}</span></button><button onClick={onExport} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-95 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}><Download size={22} className="text-blue-500"/><span className="font-medium text-lg">Backup Data (JSON)</span></button><button onClick={() => fileInputRef.current?.click()} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-95 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}><Upload size={22} className="text-green-500"/><span className="font-medium text-lg">Import Data</span><input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={onImport}/></button></div> <a href="https://saweria.co/Densl" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-3 p-4 rounded-xl bg-yellow-400 text-black font-bold hover:bg-yellow-500 transition-colors active:scale-95"><Heart size={20} fill="black" /><span>Support on Saweria</span></a> </div> <div className="mt-6 text-center opacity-50 text-sm font-medium"> v1.5 • Made with 🖤 in Jakarta </div> </motion.div> </div> ); };
 
-// --- Note Editor (IMAGE INTERACTION UPGRADE) ---
+// --- Note Editor ---
 const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, onCloseSettings, onOpenSettings, appTheme, apiKey }: any) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null); // NEW: Camera Input
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const { height: viewportHeight, offsetTop } = useVisualViewport();
   const [showAI, setShowAI] = useState(false);
   const [selectedImgId, setSelectedImgId] = useState<string | null>(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
   
-  // FIX: Initialize as NULL to force first render update
   const lastHtml = useRef<string | null>(null);
 
   if (!note) return null;
@@ -321,7 +434,6 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [textSize, setTextSize] = useState<TextSize>(note.textSize || 'medium');
 
-  // PERFORMANCE OPTIMIZATION: Memoize formatter to avoid recreation
   const checkFormats = useCallback(() => {
     const formats = [];
     if (document.queryCommandState('bold')) formats.push('bold');
@@ -337,9 +449,7 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
 
   const format = (cmd: string, val?: string) => { editorRef.current?.focus(); setTimeout(() => { document.execCommand(cmd, false, val); checkFormats(); }, 0); };
   
-  // FIX: Optimized Content Sync (Handle External Updates + Initial Load)
   useEffect(() => {
-      // If ref is null (initial load) OR content mismatch (external update), update DOM
       if (editorRef.current && (lastHtml.current === null || note.content !== lastHtml.current)) {
           editorRef.current.innerHTML = note.content; 
           lastHtml.current = note.content;
@@ -349,19 +459,12 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
 
   useEffect(() => {
       setTimeout(attachImageListeners, 100);
-      
-      // FIX: Checklist Persistence
       const handleCheckboxClick = (e: MouseEvent) => {
           if ((e.target as HTMLElement).tagName === 'INPUT' && (e.target as HTMLInputElement).type === 'checkbox') {
               const target = e.target as HTMLInputElement;
-              // Crucial: Update the attribute so innerHTML catches it
-              if (target.checked) {
-                  target.setAttribute('checked', 'true');
-              } else {
-                  target.removeAttribute('checked');
-              }
+              if (target.checked) target.setAttribute('checked', 'true');
+              else target.removeAttribute('checked');
               
-              // Let the checkbox toggle naturally, then save state
               setTimeout(() => {
                   if(editorRef.current) {
                       const newContent = editorRef.current.innerHTML;
@@ -377,33 +480,23 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
       return () => { if(el) el.removeEventListener('click', handleCheckboxClick); }
   }, []);
 
-  // --- SMART IMAGE LISTENER ---
   const attachImageListeners = useCallback(() => {
       if (!editorRef.current) return;
       const images = editorRef.current.getElementsByTagName('img');
       Array.from(images).forEach((img) => {
           img.onclick = (e) => {
               e.stopPropagation();
-              // Deselect others
               Array.from(images).forEach(i => i.removeAttribute('data-selected'));
-              
-              // Set selection on this image
               img.setAttribute('data-selected', 'true');
               img.style.borderRadius = '2rem'; 
-              
-              if (!img.id) img.id = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-              
-              // Calculate Position for Popover
               const rect = img.getBoundingClientRect();
               setPopoverPos({ x: rect.left + rect.width / 2, y: rect.top });
-              
               setSelectedImgId(img.id);
           };
       });
   }, []);
 
   const handleEditorClick = () => {
-      // Clear selection when clicking elsewhere
       if (selectedImgId && editorRef.current) {
           const images = editorRef.current.getElementsByTagName('img');
           Array.from(images).forEach(i => i.removeAttribute('data-selected'));
@@ -414,26 +507,18 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
-          // CHECK FILE SIZE (8MB Limit to prevent crash)
-          if (file.size > 8 * 1024 * 1024) {
-              alert("Gambar terlalu besar! Mohon upload gambar di bawah 8MB.");
-              return;
-          }
-
+          if (file.size > 8 * 1024 * 1024) { alert("Gambar terlalu besar! Mohon upload gambar di bawah 8MB."); return; }
           const reader = new FileReader();
           reader.onload = (event) => {
               if (event.target?.result) {
                   const imgTag = `<img src="${event.target.result}" style="max-width: 100%; border-radius: 2rem; margin: 10px 0; display: inline-block;" />`;
-                  // execCommand pushes to Undo Stack!
                   document.execCommand('insertHTML', false, imgTag);
-                  
                   if(editorRef.current) {
                       const newContent = editorRef.current.innerHTML;
-                      lastHtml.current = newContent; // Update ref to avoid DOM overwrite
+                      lastHtml.current = newContent;
                       onUpdate(note.id, { content: newContent });
                       attachImageListeners();
                   }
-                  // RESET INPUT VALUE TO ALLOW RE-UPLOAD OF SAME FILE
                   if(fileInputRef.current) fileInputRef.current.value = '';
                   if(cameraInputRef.current) cameraInputRef.current.value = '';
               }
@@ -447,17 +532,14 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
       const img = document.getElementById(selectedImgId) as HTMLImageElement;
       if (!img) return;
 
-      if (action === 'delete') {
-          img.remove();
-          setSelectedImgId(null);
-      } else if (action === 'crop' && value) {
+      if (action === 'delete') { img.remove(); setSelectedImgId(null); } 
+      else if (action === 'crop' && value) {
           img.style.objectFit = 'cover';
           img.style.width = '100%'; 
-          
           if (value === '19:6') img.style.aspectRatio = '19/6';
           else if (value === '1:1') img.style.aspectRatio = '1/1';
           else if (value === '16:9') img.style.aspectRatio = '16/9';
-          else img.style.aspectRatio = 'auto'; // Reset
+          else img.style.aspectRatio = 'auto'; 
       }
       
       const newContent = editorRef.current.innerHTML;
@@ -467,20 +549,14 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
 
   const handleAIApply = (text: string, mode: 'replace' | 'append') => {
       if (!editorRef.current) return;
-
-      // MODE: ALWAYS APPEND
       const newContent = note.content + "<br/><br/>" + text;
       lastHtml.current = newContent;
       onUpdate(note.id, { content: newContent });
       editorRef.current.innerHTML = newContent;
-      
       attachImageListeners();
   }
 
-  // --- NEW: TODO CHECKBOX INSERTION ---
   const insertCheckbox = () => {
-      // Modern way: styled checkbox
-      // We set checked="false" initially (or omit it)
       const checkboxHtml = `<br/><input type="checkbox" style="margin-right: 8px; transform: scale(1.2); accent-color: ${isDark ? '#a78bfa' : '#6366f1'}; vertical-align: middle;"> `;
       document.execCommand('insertHTML', false, checkboxHtml);
   };
@@ -523,17 +599,14 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
           </div>
        </div>
 
-       {/* IMAGE CONTEXT MENU (POPOVER) - ATTACHED TO IMAGE */}
+       {/* IMAGE CONTEXT MENU */}
        <AnimatePresence>
            {selectedImgId && (
                <motion.div 
                  initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 10 }}
                  style={{ 
-                     position: 'fixed', 
-                     left: popoverPos.x, 
-                     top: popoverPos.y - 10, // Slightly above image
-                     transform: 'translate(-50%, -100%)', // Centered and above
-                     zIndex: 100
+                     position: 'fixed', left: popoverPos.x, top: popoverPos.y - 10, 
+                     transform: 'translate(-50%, -100%)', zIndex: 100
                  }}
                  className="origin-bottom"
                >
@@ -550,7 +623,6 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
                             <Trash2 size={14} /> Hapus
                         </button>
                    </div>
-                   {/* Arrow Indicator */}
                    <div className={`w-3 h-3 rotate-45 absolute left-1/2 -bottom-1.5 -translate-x-1/2 ${isDark ? 'bg-zinc-900' : 'bg-white'}`}></div>
                </motion.div>
            )}
@@ -560,7 +632,6 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
        <div className={`flex-1 overflow-y-auto px-6 py-6 bg-transparent`} onClick={handleEditorClick}>
           <div className="max-w-4xl mx-auto pb-4">
               <input value={note.title} onChange={(e) => onUpdate(note.id, {title: e.target.value})} placeholder="Title" className="w-full bg-transparent text-4xl font-bold outline-none mb-6 placeholder-current/30 text-left" dir="ltr" />
-              {/* CSS Injection for Image Selection visual */}
               <style>{`
                   img[data-selected="true"] { outline: 3px solid ${isDark ? '#a78bfa' : '#6366f1'}; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); }
               `}</style>
@@ -570,7 +641,6 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
                 suppressContentEditableWarning 
                 onInput={(e) => { 
                     const newHtml = e.currentTarget.innerHTML;
-                    // Fix: Update local ref immediately to prevent overwrite by useEffect
                     lastHtml.current = newHtml;
                     onUpdate(note.id, {content: newHtml}); 
                     checkFormats(); 
@@ -590,11 +660,8 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
              <ToolbarButton icon={Type} onClick={cycleTextSize} isDark={isDark} appTheme={appTheme} label={textSize === 'medium' ? 'M' : textSize === 'large' ? 'L' : 'S'}/>
              
              <div className="relative flex gap-1">
-                {/* GALLERY UPLOAD */}
                 <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
                 <ToolbarButton icon={ImageIcon} onClick={() => fileInputRef.current?.click()} isDark={isDark} appTheme={appTheme} />
-                
-                {/* CAMERA UPLOAD (Mobile Only typically) */}
                 <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} className="hidden" onChange={handleImageUpload} />
                 <ToolbarButton icon={Camera} onClick={() => cameraInputRef.current?.click()} isDark={isDark} appTheme={appTheme} />
              </div>
@@ -617,54 +684,6 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
   );
 };
 
-// --- FAB COMPONENT (UPDATED WITH TODO & IMAGE OPTIONS) ---
-const FloatingActionButton = ({ isOpen, onToggle, onCreateNote, onCreateFolder, appTheme, isDark }: any) => {
-    const theme = APP_THEMES[appTheme as AppThemeColor];
-
-    return (
-        <div className="fixed bottom-6 right-6 z-[95] flex flex-col items-end gap-3">
-             <AnimatePresence>
-                {isOpen && (
-                    <>
-                        <motion.button
-                            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 20, scale: 0.8 }}
-                            transition={{ duration: 0.2, delay: 0.1 }}
-                            onClick={() => { onCreateFolder(); onToggle(); }}
-                            className={`flex items-center gap-2 pr-5 pl-4 py-3 rounded-full shadow-lg font-bold backdrop-blur-md border ${isDark ? 'bg-zinc-800/90 border-zinc-700 text-white' : 'bg-white/90 border-white text-zinc-800'}`}
-                        >
-                            <FolderPlus size={20} className={theme.text} />
-                            <span>Folder</span>
-                        </motion.button>
-
-                        <motion.button
-                            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 20, scale: 0.8 }}
-                            transition={{ duration: 0.2 }}
-                            onClick={() => { onCreateNote(); onToggle(); }}
-                            className={`flex items-center gap-2 pr-5 pl-4 py-3 rounded-full shadow-lg font-bold backdrop-blur-md border ${isDark ? 'bg-zinc-800/90 border-zinc-700 text-white' : 'bg-white/90 border-white text-zinc-800'}`}
-                        >
-                            <FilePlus size={20} className={theme.text} />
-                            <span>Note</span>
-                        </motion.button>
-                    </>
-                )}
-            </AnimatePresence>
-            
-            <button 
-                onClick={onToggle}
-                className={`w-16 h-16 rounded-[1.2rem] shadow-xl flex items-center justify-center text-white transition-all active:scale-90 ${theme.bg} ${theme.ring} hover:brightness-110`}
-            >
-                <motion.div animate={{ rotate: isOpen ? 45 : 0 }}>
-                    <Plus size={32} />
-                </motion.div>
-            </button>
-        </div>
-    )
-}
-
 // --- Main App Logic ---
 type TabType = 'all' | 'favorites' | 'folders' | 'notes' | 'trash';
 
@@ -673,7 +692,6 @@ export default function App() {
   const [appTheme, setAppTheme] = useLocalStorage<AppThemeColor>('desnote-app-theme', 'default');
   const [suppressDelete, setSuppressDelete] = useLocalStorage<boolean>('suppress_delete', false);
   const [apiKey, setApiKey] = useLocalStorage<string>('desnote-api-key', '');
-  const [isFabOpen, setIsFabOpen] = useState(false);
 
   useEffect(() => { if (isDark) { document.body.classList.add('dark'); } else { document.body.classList.remove('dark'); } }, [isDark]);
 
@@ -700,19 +718,21 @@ export default function App() {
   const [showSearch, setShowSearch] = useState(false);
 
   const theme = APP_THEMES[appTheme as AppThemeColor];
+  
+  // TABS MANAGEMENT FOR SWIPE
+  const TABS_ORDER: TabType[] = ['all', 'favorites', 'folders', 'notes', 'trash'];
 
   // History Pop State Handling
   const historyPopped = useRef(false);
   useEffect(() => {
     if (!historyPopped.current) {
-        if (activeNoteId || expandedFolderId || peekingNoteId || showSettingsModal || isSelectionMode || showNoteSettings || folderSettingsId || showMoveDialog || deleteModal.isOpen || isFabOpen) {
+        if (activeNoteId || expandedFolderId || peekingNoteId || showSettingsModal || isSelectionMode || showNoteSettings || folderSettingsId || showMoveDialog || deleteModal.isOpen) {
             window.history.pushState(null, '', window.location.href);
         }
     }
     historyPopped.current = false; 
     const handlePopState = (event: PopStateEvent) => {
       historyPopped.current = true; 
-      if (isFabOpen) { setIsFabOpen(false); return; }
       if (deleteModal.isOpen) { setDeleteModal(prev => ({...prev, isOpen: false})); return; }
       if (showMoveDialog) { setShowMoveDialog(false); return; }
       if (folderSettingsId) { setFolderSettingsId(null); return; }
@@ -726,7 +746,7 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeNoteId, expandedFolderId, showSettingsModal, isSelectionMode, showSearch, peekingNoteId, folderSettingsId, showMoveDialog, deleteModal.isOpen, showNoteSettings, isFabOpen]);
+  }, [activeNoteId, expandedFolderId, showSettingsModal, isSelectionMode, showSearch, peekingNoteId, folderSettingsId, showMoveDialog, deleteModal.isOpen, showNoteSettings]);
 
   const getFilteredData = () => {
       let filteredNotes = notes.filter(n => activeTab === 'trash' ? n.isDeleted : !n.isDeleted);
@@ -745,11 +765,28 @@ export default function App() {
   };
   const { filteredNotes, filteredFolders } = getFilteredData();
 
-  const createNote = (folderId: string | null = null) => {
-    const newNote: Note = { id: uuidv4(), title: '', content: '', folderId, color: 'slate', shape: 'rounded-tl-[2.5rem] rounded-br-[2.5rem] rounded-tr-xl rounded-bl-xl', icon: 'file-text', updatedAt: Date.now() };
+  const createNote = (folderId: string | null = null, initialTitle: string = "", initialContent: string = "") => {
+    const newNote: Note = { 
+        id: uuidv4(), 
+        title: initialTitle, 
+        content: initialContent, // Add content param
+        folderId, 
+        color: 'slate', 
+        shape: 'rounded-tl-[2.5rem] rounded-br-[2.5rem] rounded-tr-xl rounded-bl-xl', 
+        icon: 'file-text', 
+        updatedAt: Date.now() 
+    };
     setNotes([newNote, ...notes]);
-    setActiveNoteId(newNote.id);
+    
+    // Only open editor if it was a "Full Note" action (no initial content/title from quick card usually implies full editor intention, 
+    // BUT quick card sends title/content, so we DON'T auto-open editor if it came from there to keep it "Quick")
+    // Wait, requirement: "kita beneran nyatet langsung dan bisa nyatat ketika card di swipe... ada tombol save".
+    // So if saved from quick card, we just save. We don't open editor.
+    if (!initialTitle && !initialContent) {
+        setActiveNoteId(newNote.id);
+    }
   };
+
   const createFolder = () => {
     const newFolder: Folder = { id: uuidv4(), name: 'New Folder', color: 'violet', shape: 'rounded-tl-[2.5rem] rounded-br-[2.5rem] rounded-tr-xl rounded-bl-xl' };
     setFolders([...folders, newFolder]);
@@ -775,53 +812,17 @@ export default function App() {
   };
   const toggleSelection = (id: string) => { const newSet = new Set(selectedIds); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); setSelectedIds(newSet); };
   
-  // --- NEW: Handle Duplicate ---
   const handleDuplicateSelected = () => {
       const newNotes = [...notes];
       const newFolders = [...folders];
       const timestamp = Date.now();
-
       selectedIds.forEach(id => {
-          // Try to find as note
           const note = notes.find(n => n.id === id);
-          if (note) {
-              const duplicate: Note = {
-                  ...note,
-                  id: uuidv4(),
-                  title: `${note.title} (Copy)`,
-                  updatedAt: timestamp
-              };
-              newNotes.unshift(duplicate); // Add to top
-          }
-
-          // Try to find as folder
+          if (note) { const duplicate: Note = { ...note, id: uuidv4(), title: `${note.title} (Copy)`, updatedAt: timestamp }; newNotes.unshift(duplicate); }
           const folder = folders.find(f => f.id === id);
-          if (folder) {
-              const newFolderId = uuidv4();
-              const duplicateFolder: Folder = {
-                  ...folder,
-                  id: newFolderId,
-                  name: `${folder.name} (Copy)`
-              };
-              newFolders.push(duplicateFolder);
-
-              // Duplicate contents
-              const folderNotes = notes.filter(n => n.folderId === folder.id);
-              folderNotes.forEach(fn => {
-                  newNotes.unshift({
-                      ...fn,
-                      id: uuidv4(),
-                      folderId: newFolderId,
-                      updatedAt: timestamp
-                  });
-              });
-          }
+          if (folder) { const newFolderId = uuidv4(); const duplicateFolder: Folder = { ...folder, id: newFolderId, name: `${folder.name} (Copy)` }; newFolders.push(duplicateFolder); const folderNotes = notes.filter(n => n.folderId === folder.id); folderNotes.forEach(fn => { newNotes.unshift({ ...fn, id: uuidv4(), folderId: newFolderId, updatedAt: timestamp }); }); }
       });
-
-      setNotes(newNotes);
-      setFolders(newFolders);
-      setIsSelectionMode(false);
-      setSelectedIds(new Set());
+      setNotes(newNotes); setFolders(newFolders); setIsSelectionMode(false); setSelectedIds(new Set());
   };
 
   const handleExport = () => {
@@ -837,7 +838,13 @@ export default function App() {
       reader.readAsText(file);
   };
 
-  // Styles to hide scrollbar
+  const handleTabSwipe = (direction: number) => {
+      if (isSelectionMode) return;
+      const currentIndex = TABS_ORDER.indexOf(activeTab);
+      const nextIndex = Math.min(Math.max(currentIndex + direction, 0), TABS_ORDER.length - 1);
+      setActiveTab(TABS_ORDER[nextIndex]);
+  };
+
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -857,24 +864,39 @@ export default function App() {
 
       <AnimatePresence mode="wait">
         {activeNoteId ? (
-          // Fix: Use key={activeNoteId} to force remount on note switch
           <NoteEditor key={activeNoteId} note={notes.find(n => n.id === activeNoteId)} isDark={isDark} showSettings={showNoteSettings} onOpenSettings={() => setShowNoteSettings(true)} onCloseSettings={() => setShowNoteSettings(false)} onUpdate={(id: string, u: Partial<Note>) => setNotes(prev => prev.map(n => n.id === id ? {...n, ...u, updatedAt: Date.now()} : n))} onClose={() => setActiveNoteId(null)} onDelete={() => requestDelete('note', activeNoteId!)} appTheme={appTheme} apiKey={apiKey} />
         ) : (
-          <Dashboard 
-            key="dashboard" notes={filteredNotes} folders={filteredFolders} allNotes={notes} isDark={isDark} toggleSettings={() => setShowSettingsModal(true)} activeTab={activeTab} setActiveTab={setActiveTab} expandedFolderId={expandedFolderId} setExpandedFolderId={setExpandedFolderId} peekingNoteId={peekingNoteId} setPeekingNoteId={setPeekingNoteId} onOpenNote={(id: string) => { setPeekingNoteId(null); setActiveNoteId(id); }} onDeleteFolder={(id) => requestDelete('folder', id)} onDeleteNote={(id) => requestDelete('note', id)} onRestoreItem={restoreItem} onCreateNoteInFolder={createNote} isSelectionMode={isSelectionMode} selectedIds={selectedIds} setSelectedIds={setSelectedIds} setIsSelectionMode={setIsSelectionMode} searchQuery={searchQuery} setSearchQuery={setSearchQuery} showSearch={showSearch} setShowSearch={setShowSearch} openFolderSettings={(id) => setFolderSettingsId(id)} onMoveClick={prepareMove} deleteSelected={() => { selectedIds.forEach(id => { const isNote = notes.some(n => n.id === id); executeDelete(isNote ? 'note' : 'folder', id); }); setIsSelectionMode(false); setSelectedIds(new Set()); }} toggleFavoriteSelected={toggleFavoriteSelected} toggleSelection={toggleSelection} appTheme={appTheme}
-            onDuplicate={handleDuplicateSelected}
-          />
+          // SWIPE HANDLER WRAPPER
+          <motion.div 
+              key="dashboard"
+              className="h-full min-h-screen"
+              onPanEnd={(e, info) => {
+                  if (info.offset.x < -100) handleTabSwipe(1); // Swipe Left -> Next Tab
+                  if (info.offset.x > 100) handleTabSwipe(-1); // Swipe Right -> Prev Tab
+              }}
+          >
+              <Dashboard 
+                notes={filteredNotes} folders={filteredFolders} allNotes={notes} isDark={isDark} toggleSettings={() => setShowSettingsModal(true)} activeTab={activeTab} setActiveTab={setActiveTab} expandedFolderId={expandedFolderId} setExpandedFolderId={setExpandedFolderId} peekingNoteId={peekingNoteId} setPeekingNoteId={setPeekingNoteId} onOpenNote={(id: string) => { setPeekingNoteId(null); setActiveNoteId(id); }} onDeleteFolder={(id) => requestDelete('folder', id)} onDeleteNote={(id) => requestDelete('note', id)} onRestoreItem={restoreItem} onCreateNoteInFolder={createNote} isSelectionMode={isSelectionMode} selectedIds={selectedIds} setSelectedIds={setSelectedIds} setIsSelectionMode={setIsSelectionMode} searchQuery={searchQuery} setSearchQuery={setSearchQuery} showSearch={showSearch} setShowSearch={setShowSearch} openFolderSettings={(id) => setFolderSettingsId(id)} onMoveClick={prepareMove} deleteSelected={() => { selectedIds.forEach(id => { const isNote = notes.some(n => n.id === id); executeDelete(isNote ? 'note' : 'folder', id); }); setIsSelectionMode(false); setSelectedIds(new Set()); }} toggleFavoriteSelected={toggleFavoriteSelected} toggleSelection={toggleSelection} appTheme={appTheme}
+                onDuplicate={handleDuplicateSelected}
+              />
+          </motion.div>
         )}
       </AnimatePresence>
 
       {!activeNoteId && !isSelectionMode && activeTab !== 'trash' && (
-         <FloatingActionButton isOpen={isFabOpen} onToggle={() => setIsFabOpen(!isFabOpen)} onCreateNote={() => createNote()} onCreateFolder={() => createFolder()} appTheme={appTheme} isDark={isDark} />
+         <QuickCreateCard 
+            onCreateNote={createNote}
+            onCreateFolder={createFolder}
+            onFullEditor={() => createNote()} // Calls without args -> Opens full editor (logic modified in createNote)
+            appTheme={appTheme}
+            isDark={isDark}
+         />
       )}
     </div>
   );
 }
 
-// --- Header Component (FIX: SOLID BG NO BLUR & BUTTON COLORS) ---
+// --- Header Component ---
 const Header = ({ activeTab, setActiveTab, toggleSettings, isSelectionMode, toggleSelectionMode, isDark, searchQuery, setSearchQuery, showSearch, setShowSearch, selectedCount, deleteSelected, onMoveClick, hasFolderSelected, toggleFavoriteSelected, appTheme, onDuplicate }: any) => {
     const theme = APP_THEMES[appTheme as AppThemeColor];
     const tabs = [ { id: 'all', label: 'All', icon: Layers }, { id: 'favorites', label: 'Favorit', icon: Star }, { id: 'folders', label: 'Folder', icon: FolderIcon }, { id: 'notes', label: 'Catatan', icon: FileText }, { id: 'trash', label: 'Sampah', icon: Trash2 }, ];
@@ -917,7 +939,6 @@ const Header = ({ activeTab, setActiveTab, toggleSettings, isSelectionMode, togg
                     <LayoutGroup>
                     {tabs.map(tab => {
                         const isActive = activeTab === tab.id; const Icon = tab.icon;
-                        // FIX: Explicitly set active colors based on theme to ensure visibility
                         const activeClass = isActive 
                             ? theme.tabActive 
                             : (isDark ? 'bg-[#27272a] text-[#a1a1aa]' : 'bg-white text-zinc-500 border border-black/5');
@@ -979,9 +1000,7 @@ const FolderItem = ({ folder, notes, isExpanded, isDark, colors, onToggle, onClo
   const startPoint = useRef({ x: 0, y: 0 });
   const handlePointerDown = (e: React.PointerEvent) => { 
       if (isSelectionMode) return; 
-      // FIX: Disable folder long-press when expanded
       if (isExpanded) return;
-      
       startPoint.current = { x: e.clientX, y: e.clientY }; 
       longPressTimer.current = setTimeout(() => { onLongPress(); }, 500); 
   };
@@ -1025,7 +1044,6 @@ const NoteCard = ({ note, onClick, onDelete, onRestore, inFolder, isDark, colors
   const safeIsPeeking = isPeeking || false;
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   
-  // FIX: Allow selection in Peeking Mode (removed safeIsPeeking check)
   const handlePointerDown = () => { 
       if (isSelectionMode) return; 
       longPressTimer.current = setTimeout(() => { if (onLongPress) onLongPress(); }, 500); 
@@ -1033,17 +1051,14 @@ const NoteCard = ({ note, onClick, onDelete, onRestore, inFolder, isDark, colors
   
   const handlePointerUp = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
   const onPanStart = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }
-  // FIX: Allow swipe deletion even in Trash (to "wipe" delete)
   const onDragEnd = (event: any, info: PanInfo) => { if (Math.abs(info.offset.x) > 100 && !isSelectionMode) { onDelete(); } };
   
   const previewText = note.content.replace(/<[^>]+>/g, ' ').trim() || "No content";
-  // MODIFICATION: Limit peek text to 150 characters
   const truncatedPreview = previewText.length > 150 ? previewText.substring(0, 150) + "..." : previewText;
 
   return (
     <motion.div layout layoutId={`note-${note.id}`} transition={springTransition} className={`${safeIsPeeking ? 'col-span-2 row-span-2' : 'col-span-1 aspect-square'}`} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp} style={{ zIndex: safeIsPeeking ? 50 : 1, position: 'relative' }}>
         <motion.div 
-            // FIX: ENABLE DRAG ALWAYS unless selecting/peeking
             drag={!isSelectionMode && !safeIsPeeking ? "x" : false} 
             dragConstraints={{ left: 0, right: 0 }} 
             dragElastic={0.5} 
@@ -1057,7 +1072,6 @@ const NoteCard = ({ note, onClick, onDelete, onRestore, inFolder, isDark, colors
                {safeIsPeeking ? ( 
                  <div className="flex flex-col h-full overflow-hidden"> 
                    <h3 className="text-3xl font-bold mb-4 leading-tight">{note.title || "Untitled"}</h3> 
-                   {/* MODIFICATION: Use truncated text */}
                    <div className="text-lg opacity-80 leading-relaxed overflow-hidden max-h-[300px]">{truncatedPreview}</div> 
                  </div> 
                ) : ( 
