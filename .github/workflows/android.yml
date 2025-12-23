@@ -1,6 +1,7 @@
 name: Build Android APK
 
 on:
+  workflow_dispatch: # Biar bisa di-klik manual "Run workflow"
   push:
     branches:
       - main
@@ -11,31 +12,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # INI PENTING: Kita siapin Java 17 dulu secara eksplisit.
-      # Biar Bubblewrap tau Java udah ada dan gak rewel minta install.
+      # 1. Setup Java 17 (Wajib)
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
+      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
+      # 3. Install Bubblewrap
       - name: Install Bubblewrap CLI
         run: npm install -g @bubblewrap/cli
 
+      # 4. Build APK (Dengan Logika "Yes Man")
       - name: Build APK
-        # "yes |" gw pasang buat auto-accept license Android SDK kalau muncul.
-        # Keytool buat bikin sertifikat digital (keystore) dummy.
         run: |
+          # Bikin keystore dummy (sertifikat)
           keytool -genkeypair -v -keystore android-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias android -dname "CN=DinduyNote, OU=Engineering, O=Desnote, L=Jakarta, ST=DKI Jakarta, C=ID" -storepass password -keypass password
+          
+          # JALANIN BUBBLEWRAP
+          # Kita pake 'yes' buat jawab semua pertanyaan (Y/n)
+          # Dan kasih parameter lengkap biar ga bingung
           yes | bubblewrap build --manifest twa-manifest.json --skipPwaValidation
 
+      # 5. Upload APK (Hasilnya)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: ./*.apk
+          path: |
+            *.apk
+            *.aab
