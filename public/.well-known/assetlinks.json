@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.dinduynote.app",
+    "sha256_cert_fingerprints": ["38:70:95:90:9A:91:9D:6A:B9:86:14:49:95:C9:FB:60:3C:90:3F:8A:28:90:7E:6D:9C:A3:34:B4:98:90:C9:22"]
+  }
+}]
