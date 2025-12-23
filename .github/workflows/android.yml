@@ -1,7 +1,7 @@
 name: Build Android APK
 
 on:
-  workflow_dispatch: # Biar bisa di-klik manual "Run workflow"
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -12,35 +12,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Setup Java 17 (Wajib)
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # 3. Install Bubblewrap
       - name: Install Bubblewrap CLI
         run: npm install -g @bubblewrap/cli
 
-      # 4. Build APK (Dengan Logika "Yes Man")
       - name: Build APK
         run: |
-          # Bikin keystore dummy (sertifikat)
-          keytool -genkeypair -v -keystore android-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias android -dname "CN=DinduyNote, OU=Engineering, O=Desnote, L=Jakarta, ST=DKI Jakarta, C=ID" -storepass password -keypass password
-          
-          # JALANIN BUBBLEWRAP
-          # Kita pake 'yes' buat jawab semua pertanyaan (Y/n)
-          # Dan kasih parameter lengkap biar ga bingung
-          yes | bubblewrap build --manifest twa-manifest.json --skipPwaValidation
+          # 1. Hapus keystore lama kalau ada (biar bersih)
+          rm -f android-keystore.jks
 
-      # 5. Upload APK (Hasilnya)
+          # 2. Generate Keystore Manual dengan password 'password' (6 karakter++)
+          # Kita pake -storepass dan -keypass biar dia gak nanya password lagi
+          keytool -genkeypair -v -keystore android-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias android -dname "CN=Desnote, OU=Engineering, O=Desnote, L=Jakarta, ST=DKI Jakarta, C=ID" -storepass password -keypass password
+
+          # 3. Jalanin Bubblewrap
+          # yes | digunakan untuk konfirmasi install Android SDK tools
+          # Kita juga bisa skip keystore generation di bubblewrap karena udah kita bikin di atas
+          yes | bubblewrap build --manifest twa-manifest.json --skipPwaValidation --verbose
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -48,3 +47,6 @@ jobs:
           path: |
             *.apk
             *.aab
+
+
+
