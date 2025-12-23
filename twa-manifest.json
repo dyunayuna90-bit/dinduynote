@@ -1,5 +1,5 @@
 {
-  "packageId": "app.vercel.dinduynote_otwz.twa",
+  "packageId": "com.dinduynote.app",
   "host": "dinduynote-eight.vercel.app",
   "name": "DinduyNote",
   "launcherName": "DinduyNote",
@@ -12,8 +12,6 @@
   "iconUrl": "https://dinduynote-eight.vercel.app/pwa-512x512.png",
   "appVersion": "1.0.0",
   "appVersionCode": 1,
-  "shortcuts": [],
-  "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "signing.keystore",
     "alias": "my-key-alias"
