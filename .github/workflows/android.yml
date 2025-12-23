@@ -28,16 +28,16 @@ jobs:
 
       - name: Build APK
         run: |
-          # 1. Hapus keystore lama kalau ada (biar bersih)
+          # 1. HAPUS keystore lama biar ga ada drama password salah
           rm -f android-keystore.jks
 
-          # 2. Generate Keystore Manual dengan password 'password' (6 karakter++)
-          # Kita pake -storepass dan -keypass biar dia gak nanya password lagi
+          # 2. Bikin keystore BARU dengan password 'password' yang jelas
+          # Pake -storepass dan -keypass biar dia ga nanya-nanya lagi
           keytool -genkeypair -v -keystore android-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias android -dname "CN=Desnote, OU=Engineering, O=Desnote, L=Jakarta, ST=DKI Jakarta, C=ID" -storepass password -keypass password
 
           # 3. Jalanin Bubblewrap
-          # yes | digunakan untuk konfirmasi install Android SDK tools
-          # Kita juga bisa skip keystore generation di bubblewrap karena udah kita bikin di atas
+          # 'yes' itu buat jawab 'Y' otomatis pas install SDK
+          # Tambahin --skipPwaValidation biar ga rewel soal icon SVG
           yes | bubblewrap build --manifest twa-manifest.json --skipPwaValidation --verbose
 
       - name: Upload APK
@@ -47,6 +47,3 @@ jobs:
           path: |
             *.apk
             *.aab
-
-
-
