@@ -10,7 +10,6 @@
   "enableNotifications": false,
   "startUrl": "/",
   "iconUrl": "https://dinduynote-eight.vercel.app/pwa-512x512.png",
-  "maskableIconUrl": "https://dinduynote-eight.vercel.app/mask-icon.svg",
   "appVersion": "1.0.0",
   "appVersionCode": 1,
   "shortcuts": [],
