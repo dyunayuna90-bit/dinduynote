@@ -1,49 +1,58 @@
-name: Build Android APK
+[span_0](start_span)name: Build Desnote APK[span_0](end_span)
 
 on:
-  workflow_dispatch:
+  [span_1](start_span)workflow_dispatch:[span_1](end_span)
   push:
     branches:
-      - main
+      - [span_2](start_span)main[span_2](end_span)
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    [span_3](start_span)runs-on: ubuntu-latest[span_3](end_span)
     steps:
-      - uses: actions/checkout@v4
+      - [span_4](start_span)uses: actions/checkout@v4[span_4](end_span)
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          [span_5](start_span)distribution: 'temurin'[span_5](end_span)
+          [span_6](start_span)java-version: '17'[span_6](end_span)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          [span_7](start_span)node-version: '18'[span_7](end_span)
 
       - name: Install Bubblewrap CLI
-        run: npm install -g @bubblewrap/cli
+        [span_8](start_span)run: npm install -g @bubblewrap/cli[span_8](end_span)
 
       - name: Build APK
+        # Kita pake env variables buat bypass prompt password secara otomatis
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: "password"
+          BUBBLEWRAP_KEY_PASSWORD: "password"
         run: |
-          # 1. HAPUS keystore lama biar ga ada drama password salah
-          rm -f android-keystore.jks
+          # 1. [span_9](start_span)Hapus keystore lama biar clean build[span_9](end_span)
+          [span_10](start_span)rm -f android-keystore.jks[span_10](end_span)
 
-          # 2. Bikin keystore BARU dengan password 'password' yang jelas
-          # Pake -storepass dan -keypass biar dia ga nanya-nanya lagi
-          keytool -genkeypair -v -keystore android-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias android -dname "CN=Desnote, OU=Engineering, O=Desnote, L=Jakarta, ST=DKI Jakarta, C=ID" -storepass password -keypass password
+          # 2. Bikin keystore baru dengan password 'password' (8 karakter, aman buat syarat minimal 6)
+          keytool -genkeypair -v \
+            -keystore android-keystore.jks \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -alias android \
+            -dname "CN=Desnote, OU=Engineering, O=Desnote, L=Jakarta, ST=DKI Jakarta, C=ID" \
+            -storepass password \
+            -[span_11](start_span)keypass password[span_11](end_span)
 
-          # 3. Jalanin Bubblewrap
-          # 'yes' itu buat jawab 'Y' otomatis pas install SDK
-          # Tambahin --skipPwaValidation biar ga rewel soal icon SVG
-          yes | bubblewrap build --manifest twa-manifest.json --skipPwaValidation --verbose
+          # 3. [span_12](start_span)Jalanin build tanpa 'yes |' karena password udah dihandle env vars[span_12](end_span)
+          [span_13](start_span)bubblewrap build --manifest twa-manifest.json --skipPwaValidation --verbose[span_13](end_span)
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: Desnote-Release
           path: |
             *.apk
-            *.aab
+            *[span_14](start_span).aab[span_14](end_span)
