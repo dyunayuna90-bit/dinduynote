@@ -29,9 +29,9 @@ export interface Folder {
 }
 
 // --- CONSTANTS & PHYSICS TUNING ---
-// UPDATE: Mass 0.4 bikin rasanya "kopong" (ringan), Damping 40 biar berhentinya smooth
-const springTransition = { type: "spring", stiffness: 600, damping: 40, mass: 0.5 }; 
-const cardTransition = { type: "spring", stiffness: 500, damping: 35, mass: 0.4 }; 
+// FINAL TUNING: Lebih 'tight', minim gerakan liar
+const springTransition = { type: "spring", stiffness: 600, damping: 50, mass: 0.5 }; 
+const cardTransition = { type: "spring", stiffness: 500, damping: 45, mass: 0.4 }; 
 
 export const APP_THEMES: Record<AppThemeColor, { bg: string, text: string, ring: string, hover: string, border: string, lightBg: string, tabActive: string, headerText: string }> = {
     default: { bg: 'bg-zinc-900', text: 'text-zinc-900', ring: 'ring-zinc-900', hover: 'hover:bg-zinc-100', border: 'border-zinc-200', lightBg: 'bg-[#f8f9fa]', tabActive: '!bg-zinc-900 !text-white', headerText: 'text-zinc-900 dark:text-white' },
@@ -214,12 +214,15 @@ const ToolbarButton = ({ onClick, icon: Icon, active = false, isDark, appTheme, 
     );
 }
 
-// --- ULTIMATE QUICK CARD (NAVIGATOR EDITION v3) ---
+// --- ULTIMATE QUICK CARD (DUOLINGO 3D STYLE) ---
 const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFullEditor, appTheme, isDark, onTabChange }: any) => {
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const theme = APP_THEMES[appTheme as AppThemeColor];
     const inputRef = useRef<HTMLInputElement>(null);
+    
+    // RAW TOUCH REF FOR SWIPE LOGIC
+    const touchStart = useRef({ x: 0, y: 0 });
 
     const handleQuickSave = () => {
         if (!title.trim() && !content.trim()) return;
@@ -233,62 +236,69 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
         if (isOpen) setTimeout(() => inputRef.current?.focus(), 200);
     }, [isOpen]);
 
+    // Handle Manual Touch Logic
+    const handleTouchStart = (e: React.TouchEvent) => {
+        touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        const xDiff = touchStart.current.x - e.changedTouches[0].clientX;
+        const yDiff = touchStart.current.y - e.changedTouches[0].clientY;
+
+        // Priority 1: Horizontal Swipe (Ganti Tab)
+        if (Math.abs(xDiff) > 40 && Math.abs(xDiff) > Math.abs(yDiff)) {
+            if (xDiff > 0) onTabChange(1); // Swipe Left (Next)
+            else onTabChange(-1); // Swipe Right (Prev)
+            return;
+        }
+
+        // Priority 2: Vertical Swipe (Buka/Tutup Card)
+        if (!isOpen && yDiff > 30 && Math.abs(yDiff) > Math.abs(xDiff)) {
+            setIsOpen(true);
+        } else if (isOpen && yDiff < -50) {
+            setIsOpen(false);
+        }
+    };
+
     return (
         <motion.div
             initial={{ height: 95 }}
             animate={{ height: isOpen ? '55vh' : 95 }}
             transition={cardTransition}
-            // UPDATE: Shadow balikin lagi tapi lebih soft & elegan
-            className={`fixed bottom-0 left-0 right-0 z-[80] rounded-t-[2rem] shadow-[0_-8px_30px_rgba(0,0,0,0.15)] border-t border-black/5 flex flex-col overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}
+            // DUOLINGO 3D CONTAINER: Borders tebal di atas & samping, shadow subtle
+            className={`fixed bottom-0 left-0 right-0 z-[80] rounded-t-[2rem] border-t-[3px] border-x-[3px] border-b-0 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] flex flex-col overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-black/5'}`}
+            // USE NATIVE TOUCH EVENTS
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
         >
             {/* --- NAVIGATOR DOCK --- */}
-            <motion.div 
-                className="w-full h-[95px] flex flex-col flex-none cursor-grab active:cursor-grabbing"
-                drag="y"
-                dragConstraints={{ top: 0, bottom: 0 }}
-                dragElastic={0.02} 
-                onDragEnd={(e, info) => {
-                    // Vertical Swipe Logic (Open/Close)
-                    if (info.offset.y < -30) setIsOpen(true);
-                    if (info.offset.y > 50) setIsOpen(false);
-                }}
-                // FIX: Gunakan onPanEnd (fired by Gestures) untuk nangkep gerakan horizontal
-                // meskipun komponen dikunci drag="y"
-                onPanEnd={(e, info) => {
-                    const xMove = Math.abs(info.offset.x);
-                    const yMove = Math.abs(info.offset.y);
-                    
-                    // Logic: Kalo gerakan horizontal lebih dominan & panjang, ganti tab
-                    if (xMove > yMove && xMove > 40) {
-                        if (info.offset.x < 0) onTabChange(1); // Swipe Kiri -> Next
-                        else onTabChange(-1); // Swipe Kanan -> Prev
-                    }
-                }}
-            >
+            <div className="w-full h-[95px] flex flex-col flex-none cursor-grab active:cursor-grabbing">
                 <AnimatePresence mode="wait">
                     {!isOpen ? (
                         <motion.div 
                              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                              className="flex flex-col w-full h-full pt-3 px-4 pb-4"
                         >
-                             {/* 1. HANDLE BAR (ATAS) */}
+                             {/* 1. HANDLE BAR */}
                             <div className="flex justify-center items-center h-4 mb-2">
                                 <div className={`w-12 h-1 rounded-full opacity-20 ${isDark ? 'bg-white' : 'bg-black'}`} />
                             </div>
 
-                            {/* 2. BUTTONS ROW */}
+                            {/* 2. BUTTONS ROW (3D STYLE) */}
                             <div className="flex gap-3 flex-1">
                                 <button 
                                     onPointerDown={(e) => e.stopPropagation()} 
                                     onClick={(e) => { e.stopPropagation(); onCreateFolder(); }}
-                                    className={`flex-1 rounded-2xl font-bold text-sm tracking-wide active:scale-95 transition-transform flex items-center justify-center ${isDark ? 'bg-zinc-800 text-zinc-300 active:bg-zinc-700' : 'bg-gray-100 text-zinc-600 active:bg-gray-200'}`}
+                                    // 3D BUTTON: Border bawah tebal + active state
+                                    className={`flex-1 rounded-2xl font-bold text-sm tracking-wide transition-all flex items-center justify-center border-b-[4px] active:border-b-0 active:translate-y-[4px] active:scale-[0.98] ${isDark ? 'bg-zinc-800 text-zinc-300 border-zinc-950' : 'bg-gray-100 text-zinc-600 border-gray-300'}`}
                                 >
                                     Folder
                                 </button>
                                 <button 
                                     onPointerDown={(e) => e.stopPropagation()} 
                                     onClick={(e) => { e.stopPropagation(); onFullEditor(); }}
-                                    className={`flex-1 rounded-2xl font-bold text-sm tracking-wide active:scale-95 transition-transform flex items-center justify-center ${theme.bg} text-white shadow-md`}
+                                    // 3D BUTTON: Themed Color
+                                    className={`flex-1 rounded-2xl font-bold text-sm tracking-wide transition-all flex items-center justify-center border-b-[4px] active:border-b-0 active:translate-y-[4px] active:scale-[0.98] ${theme.bg} text-white border-black/20`}
                                 >
                                     Catatan
                                 </button>
@@ -300,7 +310,7 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="flex flex-col w-full pt-3 px-6 pb-2"
                         >
-                            {/* HANDLE (ATAS) */}
+                            {/* HANDLE */}
                             <div className="flex justify-center items-center h-4 mb-2" onClick={() => setIsOpen(false)}>
                                 <div className={`w-12 h-1 rounded-full opacity-20 ${isDark ? 'bg-white' : 'bg-black'}`} />
                             </div>
@@ -312,7 +322,7 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </motion.div>
+            </div>
 
             {/* --- EXPANDED EDITOR --- */}
             <div className="flex-1 px-6 pb-6 flex flex-col gap-4 overflow-hidden">
@@ -332,7 +342,7 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
                 <div className="flex-none pt-2 flex justify-end">
                     <button 
                         onClick={handleQuickSave}
-                        className={`px-6 py-4 rounded-2xl font-bold text-white shadow-xl active:scale-95 transition-all flex items-center gap-2 ${theme.bg}`}
+                        className={`px-6 py-4 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center gap-2 border-b-[4px] border-black/20 active:border-b-0 active:translate-y-[4px] active:scale-[0.98] ${theme.bg}`}
                     >
                         <Save size={20} />
                         <span>Simpan</span>
@@ -863,7 +873,18 @@ export default function App() {
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-[#121212] text-[#f0f0f0]' : `${theme.lightBg} text-[#1a1c1e]`}`}>
       <SettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} isDark={isDark} toggleTheme={() => setIsDark(!isDark)} onExport={handleExport} onImport={handleImport} appTheme={appTheme} setAppTheme={setAppTheme} apiKey={apiKey} setApiKey={setApiKey} />
-      <DeleteConfirmationModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({...deleteModal, isOpen: false})} isDark={isDark} message={deleteModal.message} actionLabel={deleteModal.actionLabel} onConfirm={(suppress: boolean) => { if(suppress) setSuppressDelete(true); executeDelete(deleteModal.type, deleteModal.id); setDeleteModal({...deleteModal, isOpen: false}); }} />
+      <DeleteConfirmationModal 
+        isOpen={deleteModal.isOpen} 
+        onClose={() => setDeleteModal({...deleteModal, isOpen: false})} 
+        isDark={isDark} 
+        message={deleteModal.message} 
+        actionLabel={deleteModal.actionLabel} 
+        onConfirm={(suppress: boolean) => { 
+            if(suppress) setSuppressDelete(true); 
+            executeDelete(deleteModal.type, deleteModal.id); 
+            setDeleteModal({...deleteModal, isOpen: false}); 
+        }} 
+      />
       <FolderSettingsModal isOpen={!!folderSettingsId} onClose={() => setFolderSettingsId(null)} folder={folders.find(f => f.id === folderSettingsId)} isDark={isDark} colors={isDark ? DARK_COLORS : LIGHT_COLORS} onUpdate={(id: string, u: any) => setFolders(prev => prev.map(f => f.id === id ? {...f, ...u} : f))} appTheme={appTheme} />
       <MoveDialog isOpen={showMoveDialog} onClose={() => setShowMoveDialog(false)} onConfirm={handleMoveSelected} folders={folders.filter(f => !f.isDeleted)} isDark={isDark} selectedCount={itemsToMove.length} appTheme={appTheme} />
 
@@ -956,7 +977,7 @@ const Header = ({ activeTab, setActiveTab, toggleSettings, isSelectionMode, togg
                         
                         return (
                             <motion.button layout key={tab.id} onClick={() => {
-                                // LOGIC BARU: Kalo tab udah aktif diklik lagi, balik ke 'all'
+                                // LOGIC: Kalau tab aktif dipencet lagi, balik ke All
                                 if (isActive && tab.id !== 'all') {
                                     setActiveTab('all');
                                 } else {
@@ -1029,7 +1050,7 @@ const FolderItem = ({ folder, notes, isExpanded, isDark, colors, onToggle, onClo
   return (
     <motion.div layout transition={springTransition} className={`interactive-card ${isExpanded ? 'col-span-full' : 'col-span-1 aspect-square'}`} onClick={(e) => { e.stopPropagation(); if (isSelectionMode) onSelect(); else if (!isTrash) isExpanded ? onClose() : onToggle(); }} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp} style={{ zIndex: isExpanded ? 40 : 1 }}>
         <div className={`relative w-full rounded-3xl ${isExpanded ? '' : 'h-full'}`}>
-            <motion.div drag={!isExpanded && !isSelectionMode ? "x" : false} dragConstraints={{ left: 0, right: 0 }} dragElastic={0.5} onDragStart={onPanStart} onDragEnd={onDragEnd} whileTap={!isExpanded && !isSelectionMode ? { scale: 0.95 } : {}} className={`${themeClass} ${folder.shape} relative z-10 w-full ${isExpanded ? 'h-auto min-h-full pb-12' : 'h-full'} ${isSelected ? `ring-4 ${theme.ring} ring-offset-2 ring-offset-transparent` : ''}`}>
+            <motion.div drag={!isExpanded && !isSelectionMode ? "x" : false} dragConstraints={{ left: 0, right: 0 }} dragElastic={0.5} onDragStart={onPanStart} onDragEnd={onDragEnd} whileTap={!isExpanded && !isSelectionMode ? { scale: 0.98 } : {}} className={`${themeClass} ${folder.shape} relative z-10 w-full ${isExpanded ? 'h-auto min-h-full pb-12' : 'h-full'} ${isSelected ? `ring-4 ${theme.ring} ring-offset-2 ring-offset-transparent` : ''} border-b-[6px] border-r-[2px] border-black/20 active:border-b-2 active:border-r-0 active:translate-y-[4px] transition-all`}>
                 <div className={`p-5 flex flex-col ${isExpanded ? '' : 'h-full'}`}>
                     <div className="flex justify-between items-start mb-2">
                          <div className="pr-2 relative flex-1"><h2 className="text-2xl font-bold leading-tight line-clamp-2 pr-4">{folder.name}</h2>{folder.isPinned && !isExpanded && <div className="absolute -top-1 -right-2 text-yellow-400 bg-black/10 rounded-full p-0.5 scale-75"><Star fill="currentColor" size={16}/></div>}</div>
@@ -1076,6 +1097,7 @@ const NoteCard = ({ note, onClick, onDelete, onRestore, inFolder, isDark, colors
 
   return (
     <motion.div layout layoutId={`note-${note.id}`} transition={springTransition} className={`interactive-card ${safeIsPeeking ? 'col-span-2 row-span-2' : 'col-span-1 aspect-square'}`} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp} style={{ zIndex: safeIsPeeking ? 50 : 1, position: 'relative' }}>
+        {/* DUOLINGO 3D STYLE: BORDER TETAP ADA MESKIPUN PEEKING */}
         <motion.div 
             drag={!isSelectionMode && !safeIsPeeking ? "x" : false} 
             dragConstraints={{ left: 0, right: 0 }} 
@@ -1083,8 +1105,8 @@ const NoteCard = ({ note, onClick, onDelete, onRestore, inFolder, isDark, colors
             onDragStart={onPanStart} 
             onDragEnd={onDragEnd} 
             onClick={(e) => { e.stopPropagation(); onClick(); }} 
-            whileTap={!isSelectionMode && !safeIsPeeking ? { scale: 0.95 } : {}} 
-            className={`w-full h-full relative cursor-pointer group overflow-hidden ${themeClass} ${note.shape} ${isSelected ? `ring-4 ${theme.ring} ring-offset-2 ring-offset-transparent` : ''} ${safeIsPeeking ? 'shadow-2xl' : ''}`}
+            whileTap={!isSelectionMode && !safeIsPeeking ? { scale: 0.98 } : {}} 
+            className={`w-full h-full relative cursor-pointer group overflow-hidden ${themeClass} ${note.shape} ${isSelected ? `ring-4 ${theme.ring} ring-offset-2 ring-offset-transparent` : ''} border-b-[6px] border-r-[2px] border-black/20 active:border-b-2 active:border-r-0 active:translate-y-[4px] transition-all ${safeIsPeeking ? 'shadow-2xl z-50' : ''}`}
         >
            <div className="p-5 h-full flex flex-col relative pointer-events-none"> 
                {safeIsPeeking ? ( 
