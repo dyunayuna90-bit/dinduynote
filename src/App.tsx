@@ -9,7 +9,7 @@ import {
   Zap, Coffee, Cloud, Music, Camera, MapPin, Smile, Book, Anchor, Feather, Key, Gift, Bell, Crown, 
   Gamepad, Headphones, Umbrella, Scissors, Atom, FlaskConical, Dna, Microscope, Calculator, 
   Sigma, Brain, Globe, Hourglass, Compass, Telescope, GraduationCap, Archive, Grid, Layout, Clock, AlertTriangle, MoreVertical,
-  CheckSquare, ChevronDown, CheckCircle2, Copy, Eraser, Languages, Loader2, Save, Type, Image as ImageIcon, Wand2, Sparkles
+  CheckSquare, ChevronDown, CheckCircle2, Copy, Eraser, Languages, Loader2, Save, Type, Image as ImageIcon, Wand2, Sparkles, Eye, EyeOff
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,8 +29,8 @@ export interface Folder {
 }
 
 // --- CONSTANTS & PHYSICS TUNING ---
-const springTransition = { type: "spring", stiffness: 600, damping: 40, mass: 0.5 }; 
-const quickCardTransition = { duration: 0.3, ease: "circOut" }; // Sedikit diperlambat biar smooth tapi tegas
+const springTransition = { type: "spring", stiffness: 700, damping: 35 }; 
+const quickCardTransition = { duration: 0.25, ease: "circOut" }; 
 
 export const APP_THEMES: Record<AppThemeColor, { bg: string, text: string, ring: string, hover: string, border: string, lightBg: string, tabActive: string, headerText: string }> = {
     default: { bg: 'bg-zinc-900', text: 'text-zinc-900', ring: 'ring-zinc-900', hover: 'hover:bg-zinc-100', border: 'border-zinc-200', lightBg: 'bg-[#f8f9fa]', tabActive: '!bg-zinc-900 !text-white', headerText: 'text-zinc-900 dark:text-white' },
@@ -201,7 +201,8 @@ const IconButton = ({ onClick, icon: Icon, className = "", active = false, activ
 );
 
 const ToolbarButton = ({ onClick, icon: Icon, active = false, isDark, appTheme, label }: any) => {
-    const theme = APP_THEMES[appTheme as AppThemeColor];
+    // FIX: Safety fallback
+    const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
     return (
       <button 
         onMouseDown={(e) => { e.preventDefault(); onClick(); }}
@@ -217,13 +218,17 @@ const ToolbarButton = ({ onClick, icon: Icon, active = false, isDark, appTheme, 
 const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFullEditor, appTheme, isDark, onTabChange, isTrashTab, onRestoreAll, onEmptyTrash }: any) => {
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
-    const theme = APP_THEMES[appTheme as AppThemeColor];
+    
+    // FIX: Fallback theme
+    const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
     const inputRef = useRef<HTMLInputElement>(null);
 
     // --- MANUAL GESTURE LOGIC ---
     const touchStart = useRef<{x: number, y: number} | null>(null);
 
     const handleTouchStart = (e: React.TouchEvent) => {
+        // PENTING: Stop propagation biar gak scroll dashboard
+        e.stopPropagation();
         touchStart.current = {
             x: e.targetTouches[0].clientX,
             y: e.targetTouches[0].clientY
@@ -231,6 +236,7 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
     };
 
     const handleTouchEnd = (e: React.TouchEvent) => {
+        e.stopPropagation();
         if (!touchStart.current) return;
         
         const touchEnd = {
@@ -238,35 +244,34 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
             y: e.changedTouches[0].clientY
         };
 
-        const deltaX = touchStart.current.x - touchEnd.x; // + = Swipe Kiri (Next), - = Swipe Kanan (Prev)
-        const deltaY = touchStart.current.y - touchEnd.y; // + = Swipe Atas, - = Swipe Bawah
+        const deltaX = touchStart.current.x - touchEnd.x; 
+        const deltaY = touchStart.current.y - touchEnd.y; 
         
         const absX = Math.abs(deltaX);
         const absY = Math.abs(deltaY);
-        const threshold = 50; // Minimal geser 50px baru dianggep niat
+        const threshold = 40; // Diturunin dikit biar lebih sensitif
 
-        // LOGIC DOMINANT AXIS
+        // LOGIC SWIPE TAB (Horizontal Dominant)
         if (absX > absY && absX > threshold) {
-            // Horizontal Swipe -> Tab Change
+            // Logika Natural:
+            // Swipe Jari ke KIRI (deltaX > 0) -> Konten geser ke kiri -> Muncul Tab KANAN (Next)
             if (deltaX > 0) {
-                // Swipe Left -> Next Tab
-                onTabChange(1);
+                onTabChange(1); // Next Tab
             } else {
-                // Swipe Right -> Prev Tab
-                onTabChange(-1);
+                onTabChange(-1); // Prev Tab
             }
-        } else if (absY > absX && absY > threshold) {
-            // Vertical Swipe -> Open/Close Card
+        } 
+        // LOGIC BUKA/TUTUP CARD (Vertical Dominant)
+        else if (absY > absX && absY > threshold) {
+            // Swipe Jari ke ATAS (deltaY > 0) -> Card Naik (Open)
             if (deltaY > 0) {
-                // Swipe Up -> Open
                 setIsOpen(true);
             } else {
-                // Swipe Down -> Close
                 setIsOpen(false);
             }
         }
 
-        touchStart.current = null; // Reset
+        touchStart.current = null; 
     };
 
     const handleQuickSave = () => {
@@ -285,37 +290,38 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
         <motion.div
             initial={{ height: 95 }}
             animate={{ height: isOpen ? (isTrashTab ? 250 : '55vh') : 95 }}
-            transition={quickCardTransition} 
-            // REMOVE DRAG PROP HERE - WE USE MANUAL LOGIC
-            // Attach gesture listeners
+            transition={quickCardTransition}
+            // PASANG LISTENER DI SINI (WRAPPER UTAMA)
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             className={`fixed bottom-0 left-0 right-0 z-[80] rounded-t-[2rem] shadow-[0_-8px_30px_rgba(0,0,0,0.15)] border-t border-black/5 flex flex-col overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}
         >
-            {/* --- NAVIGATOR DOCK (Touch Area Utama buat Swipe) --- */}
-            <div className="w-full h-[95px] flex flex-col flex-none cursor-grab active:cursor-grabbing select-none">
+            {/* --- NAVIGATOR DOCK (Touch Area) --- */}
+            {/* FIX: touchAction: 'none' WAJIB biar browser ga ikut campur scroll */}
+            <div 
+                className="w-full h-[95px] flex flex-col flex-none cursor-grab active:cursor-grabbing select-none"
+                style={{ touchAction: 'none' }}
+            >
                 <AnimatePresence mode="wait">
                     {!isOpen ? (
                         <motion.div 
                              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                             className="flex flex-col w-full h-full pt-3 px-4 pb-4"
+                             className="flex flex-col w-full h-full pt-3 px-4 pb-4 pointer-events-none" // Pointer events none biar tembus ke parent, KECUALI button
                         >
                             <div className="flex justify-center items-center h-4 mb-2">
                                 <div className={`w-12 h-1 rounded-full opacity-20 ${isDark ? 'bg-white' : 'bg-black'}`} />
                             </div>
 
-                            {/* 2. BUTTONS ROW */}
+                            {/* BUTTONS - Pointer events auto biar bisa diklik */}
                             {isTrashTab ? (
                                 <div className="flex gap-3 flex-1 pointer-events-auto">
                                     <button 
-                                        onPointerDown={(e) => e.stopPropagation()} 
                                         onClick={(e) => { e.stopPropagation(); onRestoreAll(); }}
                                         className={`flex-1 rounded-2xl font-bold text-sm tracking-wide active:scale-95 transition-transform flex items-center justify-center gap-2 ${isDark ? 'bg-zinc-800 text-zinc-300 active:bg-zinc-700' : 'bg-gray-100 text-zinc-600 active:bg-gray-200'}`}
                                     >
                                         <RefreshCcw size={18}/> Restore All
                                     </button>
                                     <button 
-                                        onPointerDown={(e) => e.stopPropagation()} 
                                         onClick={(e) => { e.stopPropagation(); onEmptyTrash(); }}
                                         className={`flex-1 rounded-2xl font-bold text-sm tracking-wide active:scale-95 transition-transform flex items-center justify-center gap-2 bg-red-500/10 text-red-500 active:bg-red-500/20`}
                                     >
@@ -325,14 +331,12 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
                             ) : (
                                 <div className="flex gap-3 flex-1 pointer-events-auto">
                                     <button 
-                                        onPointerDown={(e) => e.stopPropagation()} 
                                         onClick={(e) => { e.stopPropagation(); onCreateFolder(); }}
                                         className={`flex-1 rounded-2xl font-bold text-sm tracking-wide active:scale-95 transition-transform flex items-center justify-center ${isDark ? 'bg-zinc-800 text-zinc-300 active:bg-zinc-700' : 'bg-gray-100 text-zinc-600 active:bg-gray-200'}`}
                                     >
                                         Folder
                                     </button>
                                     <button 
-                                        onPointerDown={(e) => e.stopPropagation()} 
                                         onClick={(e) => { e.stopPropagation(); onFullEditor(); }}
                                         className={`flex-1 rounded-2xl font-bold text-sm tracking-wide active:scale-95 transition-transform flex items-center justify-center ${theme.bg} text-white shadow-md`}
                                     >
@@ -345,15 +349,15 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
                         // Expanded Header with Handle
                         <motion.div 
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="flex flex-col w-full pt-3 px-6 pb-2"
+                            className="flex flex-col w-full pt-3 px-6 pb-2 pointer-events-none"
                         >
-                            <div className="flex justify-center items-center h-4 mb-2" onClick={() => setIsOpen(false)}>
+                            <div className="flex justify-center items-center h-4 mb-2 pointer-events-auto" onClick={() => setIsOpen(false)}>
                                 <div className={`w-12 h-1 rounded-full opacity-20 ${isDark ? 'bg-white' : 'bg-black'}`} />
                             </div>
                             
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between pointer-events-auto">
                                 <span className="font-bold text-xl opacity-60">{isTrashTab ? 'Trash Options' : 'Quick Note'}</span>
-                                <button onClick={() => setIsOpen(false)} className="p-2 -mr-2 rounded-full hover:bg-black/5 active:scale-90 transition-transform"><ChevronDown size={24}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} className="p-2 -mr-2 rounded-full hover:bg-black/5 active:scale-90 transition-transform"><ChevronDown size={24}/></button>
                             </div>
                         </motion.div>
                     )}
@@ -362,12 +366,12 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
 
             {/* --- EXPANDED AREA --- */}
             {isTrashTab ? (
-                 <div className="flex-1 px-6 pb-6 flex flex-col gap-4 justify-center items-center opacity-70" onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+                 <div className="flex-1 px-6 pb-6 flex flex-col gap-4 justify-center items-center opacity-70" onTouchStart={(e) => e.stopPropagation()}>
                     <Trash2 size={48} className="opacity-50"/>
                     <p className="text-center text-sm font-medium">Use the buttons above to manage your trash.</p>
                  </div>
             ) : (
-                <div className="flex-1 px-6 pb-6 flex flex-col gap-4 overflow-hidden" onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+                <div className="flex-1 px-6 pb-6 flex flex-col gap-4 overflow-hidden" onTouchStart={(e) => e.stopPropagation()}>
                     <input
                         ref={inputRef}
                         value={title}
@@ -400,7 +404,8 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
 const AIActionModal = ({ isOpen, onClose, noteContent, onApply, isDark, appTheme, apiKey }: any) => {
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState('');
-    const theme = APP_THEMES[appTheme as AppThemeColor];
+    // FIX: Fallback
+    const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
     useEffect(() => { if(isOpen) setResult(''); }, [isOpen]);
     if (!isOpen) return null;
     const handleAction = async (action: string) => {
@@ -453,7 +458,8 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, isDark, message, 
 
 const MoveDialog = ({ isOpen, onClose, onConfirm, folders, isDark, selectedCount, appTheme }: any) => {
     const [selectedTarget, setSelectedTarget] = useState<string | 'root' | null>(null);
-    const theme = APP_THEMES[appTheme as AppThemeColor];
+    // FIX: Fallback
+    const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
     useEffect(() => { if (isOpen) setSelectedTarget(null); }, [isOpen]);
     if (!isOpen) return null;
     return (
@@ -467,9 +473,53 @@ const MoveDialog = ({ isOpen, onClose, onConfirm, folders, isDark, selectedCount
     );
 };
 
-const NoteSettingsModal = ({ isOpen, onClose, note, onUpdate, isDark, colors, appTheme }: any) => { if (!isOpen || !note) return null; const theme = APP_THEMES[appTheme as AppThemeColor]; return ( <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50" onClick={onClose}> <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={springTransition} onClick={e => e.stopPropagation()} className={`w-full max-w-md p-6 rounded-[2rem] shadow-2xl max-h-[85vh] overflow-y-auto ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Note Settings</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-black/5"><X size={24}/></button></div> <div className="mb-6 p-4 rounded-2xl bg-black/5 flex justify-between items-center"> <div className="flex items-center gap-3"><Pin size={20} className={note.isPinned ? theme.text : "opacity-50"} /><span className="font-bold">Pin Note</span></div> <button onClick={() => onUpdate(note.id, { isPinned: !note.isPinned })} className={`w-12 h-7 rounded-full transition-colors relative ${note.isPinned ? theme.bg : 'bg-zinc-300 dark:bg-zinc-700'}`}> <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${note.isPinned ? 'left-6' : 'left-1'}`} /> </button> </div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Color Theme</h4><div className="flex flex-wrap gap-3">{Object.keys(colors).map(c => { const bgClass = LIGHT_COLORS[c as ColorTheme].split(' ')[0]; const isActive = note.color === c; return (<button key={c} onClick={() => onUpdate(note.id, {color: c})} className={`w-10 h-10 rounded-full ${bgClass} ${isActive ? `ring-4 ring-offset-2 ${theme.ring} dark:ring-offset-zinc-900` : ''}`} />) })}</div></div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Shape</h4><div className="grid grid-cols-4 gap-3">{SHAPES.slice(0, 12).map((s,i) => <button key={i} onClick={() => onUpdate(note.id, {shape: s})} className={`h-12 bg-current opacity-10 hover:opacity-30 transition-opacity ${s} ${note.shape === s ? `!opacity-100 ring-2 ${theme.ring}` : ''}`} />)}</div></div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Icon</h4><div className="grid grid-cols-6 gap-2">{Object.keys(ICONS).map(k => { const I = ICONS[k]; return <button key={k} onClick={() => onUpdate(note.id, {icon: k})} className={`p-2 hover:bg-black/5 rounded flex items-center justify-center ${note.icon === k ? `${theme.text} ${theme.bg} bg-opacity-10` : ''}`}><I size={20}/></button> })}</div></div> </motion.div> </div> ); };
-const FolderSettingsModal = ({ isOpen, onClose, folder, onUpdate, isDark, colors, appTheme }: any) => { if (!isOpen || !folder) return null; const theme = APP_THEMES[appTheme as AppThemeColor]; return ( <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50" onClick={onClose}> <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={springTransition} onClick={e => e.stopPropagation()} className={`w-full max-w-md p-6 rounded-[2rem] shadow-2xl max-h-[85vh] overflow-y-auto ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Folder Settings</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-black/5"><X size={24}/></button></div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-2 uppercase tracking-wider">Rename</h4><input value={folder.name} onChange={(e) => onUpdate(folder.id, { name: e.target.value })} className={`w-full p-3 rounded-xl text-lg font-medium outline-none ${isDark ? 'bg-zinc-800 focus:bg-zinc-700' : 'bg-zinc-100 focus:bg-zinc-200'}`} /></div> <div className="mb-6 p-4 rounded-2xl bg-black/5 flex justify-between items-center"> <div className="flex items-center gap-3"><Pin size={20} className={folder.isPinned ? theme.text : "opacity-50"} /><span className="font-bold">Pin Folder</span></div> <button onClick={() => onUpdate(folder.id, { isPinned: !folder.isPinned })} className={`w-12 h-7 rounded-full transition-colors relative ${folder.isPinned ? theme.bg : 'bg-zinc-300 dark:bg-zinc-700'}`}> <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${folder.isPinned ? 'left-6' : 'left-1'}`} /> </button> </div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Color Theme</h4><div className="flex flex-wrap gap-3">{Object.keys(colors).map(c => { const bgClass = LIGHT_COLORS[c as ColorTheme].split(' ')[0]; const isActive = folder.color === c; return (<button key={c} onClick={() => onUpdate(folder.id, {color: c})} className={`w-10 h-10 rounded-full ${bgClass} ${isActive ? `ring-4 ring-offset-2 ${theme.ring} dark:ring-offset-zinc-900` : ''}`} />) })}</div></div> <div><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Shape</h4><div className="grid grid-cols-4 gap-3">{SHAPES.slice(0, 12).map((s,i) => <button key={i} onClick={() => onUpdate(folder.id, {shape: s})} className={`h-12 bg-current opacity-10 hover:opacity-30 transition-opacity ${s} ${folder.shape === s ? `!opacity-100 ring-2 ${theme.ring}` : ''}`} />)}</div></div> </motion.div> </div> ) }
-const SettingsModal = ({ isOpen, onClose, isDark, toggleTheme, onExport, onImport, appTheme, setAppTheme, apiKey, setApiKey }: any) => { const fileInputRef = useRef<HTMLInputElement>(null); const [showKey, setShowKey] = useState(false); const [tempKey, setTempKey] = useState(apiKey); const [isSaved, setIsSaved] = useState(false); useEffect(() => { if (isOpen) setTempKey(apiKey); setIsSaved(false); }, [isOpen, apiKey]); const handleSaveKey = () => { setApiKey(tempKey); setIsSaved(true); setTimeout(() => setIsSaved(false), 2000); }; if (!isOpen) return null; const theme = APP_THEMES[appTheme as AppThemeColor]; return ( <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50" onClick={onClose}> <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={springTransition} onClick={(e) => e.stopPropagation()} className={`w-full max-w-sm p-6 rounded-[2rem] shadow-2xl ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}> <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold tracking-tight">Desnote</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-black/5"><X size={24}/></button></div> <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar"> <div className={`p-4 rounded-2xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Material You Theme</h4><div className="flex flex-wrap gap-2 justify-start">{Object.keys(APP_THEMES).map((key) => { const t = APP_THEMES[key as AppThemeColor]; return (<button key={key} onClick={() => setAppTheme(key)} title={key} className={`w-8 h-8 rounded-full ${t.bg} transition-transform active:scale-90 ${appTheme === key ? 'ring-4 ring-offset-2 ring-current dark:ring-offset-zinc-800' : ''}`} />) })}</div></div> <div className={`p-4 rounded-2xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><Sparkles size={16} className={theme.text}/><h4 className="text-xs font-bold opacity-50 uppercase tracking-wider">Gemini API Key</h4></div>{isSaved && <span className="text-xs text-green-500 font-bold flex items-center gap-1"><Check size={12}/> Saved</span>}</div><div className="flex gap-2"><div className="relative flex-1"><input type={showKey ? "text" : "password"} value={tempKey} onChange={(e) => setTempKey(e.target.value)} placeholder="Paste Key here..." className={`w-full p-3 rounded-xl text-sm font-medium outline-none pr-10 ${isDark ? 'bg-zinc-900 focus:bg-zinc-950' : 'bg-white focus:bg-zinc-50'}`} /><button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-3 opacity-50 hover:opacity-100">{showKey ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div><button onClick={handleSaveKey} className={`p-3 rounded-xl ${theme.bg} text-white hover:opacity-90 transition-opacity active:scale-95`}><Save size={20}/></button></div><p className="text-[10px] mt-2 opacity-60 leading-tight">Key disimpan lokal di perangkat ini.</p></div> <div className="space-y-1"><button onClick={toggleTheme} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-95 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}>{isDark ? <Sun size={22} className="text-yellow-400" /> : <Moon size={22} className={theme.text} />}<span className="font-medium text-lg">{isDark ? 'Light Mode' : 'Dark Mode'}</span></button><button onClick={onExport} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-95 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}><Download size={22} className="text-blue-500"/><span className="font-medium text-lg">Backup Data (JSON)</span></button><button onClick={() => fileInputRef.current?.click()} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-95 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}><Upload size={22} className="text-green-500"/><span className="font-medium text-lg">Import Data</span><input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={onImport}/></button></div> <a href="https://saweria.co/Densl" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-3 p-4 rounded-xl bg-yellow-400 text-black font-bold hover:bg-yellow-500 transition-colors active:scale-95"><Heart size={20} fill="black" /><span>Support on Saweria</span></a> </div> <div className="mt-6 text-center opacity-50 text-sm font-medium"> v1.5 • Made with 🖤 in Jakarta </div> </motion.div> </div> ); };
+const NoteSettingsModal = ({ isOpen, onClose, note, onUpdate, isDark, colors, appTheme }: any) => { 
+    if (!isOpen || !note) return null; 
+    // FIX: Fallback
+    const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
+    return ( <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50" onClick={onClose}> <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={springTransition} onClick={e => e.stopPropagation()} className={`w-full max-w-md p-6 rounded-[2rem] shadow-2xl max-h-[85vh] overflow-y-auto ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Note Settings</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-black/5"><X size={24}/></button></div> <div className="mb-6 p-4 rounded-2xl bg-black/5 flex justify-between items-center"> <div className="flex items-center gap-3"><Pin size={20} className={note.isPinned ? theme.text : "opacity-50"} /><span className="font-bold">Pin Note</span></div> <button onClick={() => onUpdate(note.id, { isPinned: !note.isPinned })} className={`w-12 h-7 rounded-full transition-colors relative ${note.isPinned ? theme.bg : 'bg-zinc-300 dark:bg-zinc-700'}`}> <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${note.isPinned ? 'left-6' : 'left-1'}`} /> </button> </div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Color Theme</h4><div className="flex flex-wrap gap-3">{Object.keys(colors).map(c => { const bgClass = LIGHT_COLORS[c as ColorTheme].split(' ')[0]; const isActive = note.color === c; return (<button key={c} onClick={() => onUpdate(note.id, {color: c})} className={`w-10 h-10 rounded-full ${bgClass} ${isActive ? `ring-4 ring-offset-2 ${theme.ring} dark:ring-offset-zinc-900` : ''}`} />) })}</div></div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Shape</h4><div className="grid grid-cols-4 gap-3">{SHAPES.slice(0, 12).map((s,i) => <button key={i} onClick={() => onUpdate(note.id, {shape: s})} className={`h-12 bg-current opacity-10 hover:opacity-30 transition-opacity ${s} ${note.shape === s ? `!opacity-100 ring-2 ${theme.ring}` : ''}`} />)}</div></div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Icon</h4><div className="grid grid-cols-6 gap-2">{Object.keys(ICONS).map(k => { const I = ICONS[k]; return <button key={k} onClick={() => onUpdate(note.id, {icon: k})} className={`p-2 hover:bg-black/5 rounded flex items-center justify-center ${note.icon === k ? `${theme.text} ${theme.bg} bg-opacity-10` : ''}`}><I size={20}/></button> })}</div></div> </motion.div> </div> ); 
+};
+
+const FolderSettingsModal = ({ isOpen, onClose, folder, onUpdate, isDark, colors, appTheme }: any) => { 
+    if (!isOpen || !folder) return null; 
+    // FIX: Fallback
+    const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
+    return ( <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50" onClick={onClose}> <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={springTransition} onClick={e => e.stopPropagation()} className={`w-full max-w-md p-6 rounded-[2rem] shadow-2xl max-h-[85vh] overflow-y-auto ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Folder Settings</h3><button onClick={onClose} className="p-2 rounded-full hover:bg-black/5"><X size={24}/></button></div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-2 uppercase tracking-wider">Rename</h4><input value={folder.name} onChange={(e) => onUpdate(folder.id, { name: e.target.value })} className={`w-full p-3 rounded-xl text-lg font-medium outline-none ${isDark ? 'bg-zinc-800 focus:bg-zinc-700' : 'bg-zinc-100 focus:bg-zinc-200'}`} /></div> <div className="mb-6 p-4 rounded-2xl bg-black/5 flex justify-between items-center"> <div className="flex items-center gap-3"><Pin size={20} className={folder.isPinned ? theme.text : "opacity-50"} /><span className="font-bold">Pin Folder</span></div> <button onClick={() => onUpdate(folder.id, { isPinned: !folder.isPinned })} className={`w-12 h-7 rounded-full transition-colors relative ${folder.isPinned ? theme.bg : 'bg-zinc-300 dark:bg-zinc-700'}`}> <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${folder.isPinned ? 'left-6' : 'left-1'}`} /> </button> </div> <div className="mb-6"><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Color Theme</h4><div className="flex flex-wrap gap-3">{Object.keys(colors).map(c => { const bgClass = LIGHT_COLORS[c as ColorTheme].split(' ')[0]; const isActive = folder.color === c; return (<button key={c} onClick={() => onUpdate(folder.id, {color: c})} className={`w-10 h-10 rounded-full ${bgClass} ${isActive ? `ring-4 ring-offset-2 ${theme.ring} dark:ring-offset-zinc-900` : ''}`} />) })}</div></div> <div><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Shape</h4><div className="grid grid-cols-4 gap-3">{SHAPES.slice(0, 12).map((s,i) => <button key={i} onClick={() => onUpdate(folder.id, {shape: s})} className={`h-12 bg-current opacity-10 hover:opacity-30 transition-opacity ${s} ${folder.shape === s ? `!opacity-100 ring-2 ${theme.ring}` : ''}`} />)}</div></div> </motion.div> </div> ) 
+}
+
+const SettingsModal = ({ isOpen, onClose, isDark, toggleTheme, onExport, onImport, appTheme, setAppTheme, apiKey, setApiKey }: any) => { 
+    const fileInputRef = useRef<HTMLInputElement>(null); 
+    const [showKey, setShowKey] = useState(false); 
+    const [tempKey, setTempKey] = useState(apiKey); 
+    const [isSaved, setIsSaved] = useState(false); 
+    
+    // FIX 2: Critical Fix for Blank Screen - Safety Fallback for Theme
+    // Kalo appTheme di localStorage rusak/string ngaco, fallback ke 'default'
+    const safeThemeKey = (APP_THEMES[appTheme as AppThemeColor]) ? appTheme : 'default';
+    const theme = APP_THEMES[safeThemeKey as AppThemeColor];
+
+    useEffect(() => { 
+        if (isOpen) setTempKey(apiKey); 
+        setIsSaved(false); 
+    }, [isOpen, apiKey]); 
+    
+    const handleSaveKey = () => { 
+        setApiKey(tempKey); 
+        setIsSaved(true); 
+        setTimeout(() => setIsSaved(false), 2000); 
+    }; 
+    
+    if (!isOpen) return null; 
+    
+    return ( 
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50" onClick={onClose}> 
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={springTransition} onClick={(e) => e.stopPropagation()} className={`w-full max-w-sm p-6 rounded-[2rem] shadow-2xl ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}> 
+                <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold tracking-tight">Desnote</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-black/5"><X size={24}/></button></div> 
+                <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar"> 
+                    <div className={`p-4 rounded-2xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}><h4 className="text-xs font-bold opacity-50 mb-3 uppercase tracking-wider">Material You Theme</h4><div className="flex flex-wrap gap-2 justify-start">{Object.keys(APP_THEMES).map((key) => { const t = APP_THEMES[key as AppThemeColor]; return (<button key={key} onClick={() => setAppTheme(key)} title={key} className={`w-8 h-8 rounded-full ${t.bg} transition-transform active:scale-90 ${safeThemeKey === key ? 'ring-4 ring-offset-2 ring-current dark:ring-offset-zinc-800' : ''}`} />) })}</div></div> 
+                    <div className={`p-4 rounded-2xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><Sparkles size={16} className={theme.text}/><h4 className="text-xs font-bold opacity-50 uppercase tracking-wider">Gemini API Key</h4></div>{isSaved && <span className="text-xs text-green-500 font-bold flex items-center gap-1"><Check size={12}/> Saved</span>}</div><div className="flex gap-2"><div className="relative flex-1"><input type={showKey ? "text" : "password"} value={tempKey} onChange={(e) => setTempKey(e.target.value)} placeholder="Paste Key here..." className={`w-full p-3 rounded-xl text-sm font-medium outline-none pr-10 ${isDark ? 'bg-zinc-900 focus:bg-zinc-950' : 'bg-white focus:bg-zinc-50'}`} /><button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-3 opacity-50 hover:opacity-100">{showKey ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div><button onClick={handleSaveKey} className={`p-3 rounded-xl ${theme.bg} text-white hover:opacity-90 transition-opacity active:scale-95`}><Save size={20}/></button></div><p className="text-[10px] mt-2 opacity-60 leading-tight">Key disimpan lokal di perangkat ini.</p></div> 
+                    <div className="space-y-1"><button onClick={toggleTheme} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-95 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}>{isDark ? <Sun size={22} className="text-yellow-400" /> : <Moon size={22} className={theme.text} />}<span className="font-medium text-lg">{isDark ? 'Light Mode' : 'Dark Mode'}</span></button><button onClick={onExport} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-95 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}><Download size={22} className="text-blue-500"/><span className="font-medium text-lg">Backup Data (JSON)</span></button><button onClick={() => fileInputRef.current?.click()} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-95 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}><Upload size={22} className="text-green-500"/><span className="font-medium text-lg">Import Data</span><input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={onImport}/></button></div> <a href="https://saweria.co/Densl" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-3 p-4 rounded-xl bg-yellow-400 text-black font-bold hover:bg-yellow-500 transition-colors active:scale-95"><Heart size={20} fill="black" /><span>Support on Saweria</span></a> </div> <div className="mt-6 text-center opacity-50 text-sm font-medium"> v1.5 • Made with 🖤 in Jakarta </div> </motion.div> </div> ); 
+};
 
 // --- Note Editor ---
 const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, onCloseSettings, onOpenSettings, appTheme, apiKey }: any) => {
@@ -489,7 +539,9 @@ const NoteEditor = ({ note, onUpdate, onClose, onDelete, isDark, showSettings, o
   const bgClass = isDark ? 'bg-[#121212]' : (colors[note.color] || colors.slate).split(' ')[0];
   const textClass = isDark ? 'text-white' : (colors[note.color] || colors.slate).split(' ')[1];
   const themeClass = `${bgClass} ${textClass}`;
-  const theme = APP_THEMES[appTheme as AppThemeColor];
+  
+  // FIX: Fallback
+  const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
   
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [textSize, setTextSize] = useState<TextSize>(note.textSize || 'medium');
@@ -778,7 +830,8 @@ export default function App() {
   const [showSearch, setShowSearch] = useState(false);
   const [isQuickCardOpen, setIsQuickCardOpen] = useState(false);
 
-  const theme = APP_THEMES[appTheme as AppThemeColor];
+  // FIX: Fallback theme in App main component
+  const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
   
   const TABS_ORDER: TabType[] = ['all', 'favorites', 'folders', 'notes', 'trash'];
 
@@ -996,7 +1049,7 @@ export default function App() {
 
 // --- Header Component ---
 const Header = ({ activeTab, setActiveTab, toggleSettings, isSelectionMode, toggleSelectionMode, isDark, searchQuery, setSearchQuery, showSearch, setShowSearch, selectedCount, deleteSelected, onMoveClick, hasFolderSelected, toggleFavoriteSelected, appTheme, onDuplicate, onSelectAllTrash, onRestoreSelected, onDeleteSelectedForever }: any) => {
-    const theme = APP_THEMES[appTheme as AppThemeColor];
+    const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
     const tabs = [ { id: 'all', label: 'All', icon: Layers }, { id: 'favorites', label: 'Favorit', icon: Star }, { id: 'folders', label: 'Folder', icon: FolderIcon }, { id: 'notes', label: 'Catatan', icon: FileText }, { id: 'trash', label: 'Sampah', icon: Trash2 }, ];
     const getHeaderTitle = () => { if (activeTab === 'all') return "Your Space"; if (activeTab === 'favorites') return "Keeping These?"; if (activeTab === 'folders') return "Your Folder"; if (activeTab === 'notes') return "Freshly Captured"; if (activeTab === 'trash') return "Ready to Clear?"; return "Desnote"; };
 
@@ -1144,7 +1197,7 @@ const Dashboard = ({ notes, folders, allNotes, isDark, toggleSettings, activeTab
 // --- Folder Item ---
 const FolderItem = ({ folder, notes, isExpanded, isDark, colors, onToggle, onClose, onOpenNote, onDelete, onUpdate, onCreateNote, onRestore, isSelectionMode, isSelected, onSelect, onDeleteNote, onSettings, peekingNoteId, setPeekingNoteId, isTrash, onLongPress, toggleSelection, selectedIds, appTheme, onNoteLongPress, onRestoreNote }: any) => {
   const themeClass = colors[folder.color] || colors.slate;
-  const theme = APP_THEMES[appTheme as AppThemeColor];
+  const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const startPoint = useRef({ x: 0, y: 0 });
   const handlePointerDown = (e: React.PointerEvent) => { 
@@ -1191,7 +1244,7 @@ const FolderItem = ({ folder, notes, isExpanded, isDark, colors, onToggle, onClo
 const NoteCard = ({ note, onClick, onDelete, onRestore, inFolder, isDark, colors, isSelected, isSelectionMode, isPeeking, onPeek, searchQuery, isTrash, onLongPress, appTheme }: any) => {
   const Icon = (ICONS && ICONS[note.icon]) ? ICONS[note.icon] : FileText; 
   const themeClass = colors[note.color] || colors.slate;
-  const theme = APP_THEMES[appTheme as AppThemeColor];
+  const theme = APP_THEMES[appTheme as AppThemeColor] || APP_THEMES.default;
   const safeIsPeeking = isPeeking || false;
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   
