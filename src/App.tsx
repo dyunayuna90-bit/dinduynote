@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence, LayoutGroup, PanInfo, useAnimation } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup, PanInfo } from 'framer-motion';
 import { 
   ArrowLeft, Bold, Italic, Underline, List, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Trash2, X, Palette, Sun, Moon, Folder as FolderIcon,
@@ -9,7 +9,7 @@ import {
   Zap, Coffee, Cloud, Music, Camera, MapPin, Smile, Book, Anchor, Feather, Key, Gift, Bell, Crown, 
   Gamepad, Headphones, Umbrella, Scissors, Atom, FlaskConical, Dna, Microscope, Calculator, 
   Sigma, Brain, Globe, Hourglass, Compass, Telescope, GraduationCap, Archive, Grid, Layout, Clock, AlertTriangle, MoreVertical,
-  FilePlus, FolderPlus, Sparkles, Wand2, Languages, Eraser, Bot, Loader2, Copy, Eye, EyeOff, Save, Type, Image as ImageIcon, Crop, Move, Maximize, CheckSquare, ChevronUp, Send, ChevronDown, CheckCircle2
+  CheckSquare, ChevronDown, CheckCircle2, Copy, Eraser, Languages, Loader2, Save, Type, Image as ImageIcon, Wand2, Sparkles
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,9 +29,7 @@ export interface Folder {
 }
 
 // --- CONSTANTS & PHYSICS TUNING ---
-// UPDATE: Optimization for smoother experience
 const springTransition = { type: "spring", stiffness: 600, damping: 40, mass: 0.5 }; 
-// FAST TRANSITION: Biar card bawah ga ngelag
 const quickCardTransition = { duration: 0.25, ease: "circOut" }; 
 
 export const APP_THEMES: Record<AppThemeColor, { bg: string, text: string, ring: string, hover: string, border: string, lightBg: string, tabActive: string, headerText: string }> = {
@@ -238,38 +236,30 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
         <motion.div
             initial={{ height: 95 }}
             animate={{ height: isOpen ? (isTrashTab ? 250 : '55vh') : 95 }}
-            transition={quickCardTransition} // Faster Transition
+            transition={quickCardTransition} 
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={0}
+            onDragEnd={(e, info) => {
+                if (info.offset.y < -30) setIsOpen(true);
+                if (info.offset.y > 50) setIsOpen(false);
+                
+                // HORIZONTAL SWIPE DETECTION (Gesture Pemicu)
+                if (Math.abs(info.offset.x) > 50) {
+                     if (info.offset.x < 0) onTabChange(1); // Swipe Left -> Next
+                     else onTabChange(-1); // Swipe Right -> Prev
+                }
+            }}
             className={`fixed bottom-0 left-0 right-0 z-[80] rounded-t-[2rem] shadow-[0_-8px_30px_rgba(0,0,0,0.15)] border-t border-black/5 flex flex-col overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}
         >
             {/* --- NAVIGATOR DOCK --- */}
-            <motion.div 
-                className="w-full h-[95px] flex flex-col flex-none cursor-grab active:cursor-grabbing"
-                drag="y"
-                dragConstraints={{ top: 0, bottom: 0 }}
-                dragElastic={0} // Disable elasticity for faster feel
-                onDragEnd={(e, info) => {
-                    // Vertical Swipe Logic (Open/Close)
-                    if (info.offset.y < -30) setIsOpen(true);
-                    if (info.offset.y > 50) setIsOpen(false);
-                }}
-                onPanEnd={(e, info) => {
-                    const xMove = Math.abs(info.offset.x);
-                    const yMove = Math.abs(info.offset.y);
-                    
-                    // Logic: Kalo gerakan horizontal lebih dominan & panjang, ganti tab
-                    if (xMove > yMove && xMove > 40) {
-                        if (info.offset.x < 0) onTabChange(1); // Swipe Kiri -> Next
-                        else onTabChange(-1); // Swipe Kanan -> Prev
-                    }
-                }}
-            >
+            <div className="w-full h-[95px] flex flex-col flex-none cursor-grab active:cursor-grabbing">
                 <AnimatePresence mode="wait">
                     {!isOpen ? (
                         <motion.div 
                              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                              className="flex flex-col w-full h-full pt-3 px-4 pb-4"
                         >
-                             {/* 1. HANDLE BAR (ATAS) */}
                             <div className="flex justify-center items-center h-4 mb-2">
                                 <div className={`w-12 h-1 rounded-full opacity-20 ${isDark ? 'bg-white' : 'bg-black'}`} />
                             </div>
@@ -317,7 +307,6 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="flex flex-col w-full pt-3 px-6 pb-2"
                         >
-                            {/* HANDLE (ATAS) */}
                             <div className="flex justify-center items-center h-4 mb-2" onClick={() => setIsOpen(false)}>
                                 <div className={`w-12 h-1 rounded-full opacity-20 ${isDark ? 'bg-white' : 'bg-black'}`} />
                             </div>
@@ -329,7 +318,7 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </motion.div>
+            </div>
 
             {/* --- EXPANDED AREA --- */}
             {isTrashTab ? (
@@ -826,7 +815,6 @@ export default function App() {
       if (activeNoteId === id) setActiveNoteId(null);
   };
   const requestDelete = (type: string, id: string) => {
-      // FIX: Check suppressDelete even in Trash tab
       if (activeTab === 'trash') {
            if (suppressDelete) {
                executeDelete(type, id);
@@ -863,7 +851,6 @@ export default function App() {
       setNotes(newNotes); setFolders(newFolders); setIsSelectionMode(false); setSelectedIds(new Set());
   };
 
-  // Trash Helper Functions
   const restoreAllTrash = () => {
       setNotes(prev => prev.map(n => n.isDeleted ? { ...n, isDeleted: false } : n));
       setFolders(prev => prev.map(f => f.isDeleted ? { ...f, isDeleted: false } : f));
@@ -937,17 +924,13 @@ export default function App() {
         {activeNoteId ? (
           <NoteEditor key={activeNoteId} note={notes.find(n => n.id === activeNoteId)} isDark={isDark} showSettings={showNoteSettings} onOpenSettings={() => setShowNoteSettings(true)} onCloseSettings={() => setShowNoteSettings(false)} onUpdate={(id: string, u: Partial<Note>) => setNotes(prev => prev.map(n => n.id === id ? {...n, ...u, updatedAt: Date.now()} : n))} onClose={() => setActiveNoteId(null)} onDelete={() => requestDelete('note', activeNoteId!)} appTheme={appTheme} apiKey={apiKey} />
         ) : (
-          // SWIPE HANDLER WRAPPER
-          // REMOVED 'onPanEnd' from background div to prevent conflict with scrolling
-          // Replaced with dedicated touch handling in Dashboard
           <Dashboard 
             notes={filteredNotes} folders={filteredFolders} allNotes={notes} isDark={isDark} toggleSettings={() => setShowSettingsModal(true)} activeTab={activeTab} setActiveTab={setActiveTab} expandedFolderId={expandedFolderId} setExpandedFolderId={setExpandedFolderId} peekingNoteId={peekingNoteId} setPeekingNoteId={setPeekingNoteId} onOpenNote={(id: string) => { setPeekingNoteId(null); setActiveNoteId(id); }} onDeleteFolder={(id) => requestDelete('folder', id)} onDeleteNote={(id) => requestDelete('note', id)} onRestoreItem={restoreItem} onCreateNoteInFolder={createNote} isSelectionMode={isSelectionMode} selectedIds={selectedIds} setSelectedIds={setSelectedIds} setIsSelectionMode={setIsSelectionMode} searchQuery={searchQuery} setSearchQuery={setSearchQuery} showSearch={showSearch} setShowSearch={setShowSearch} openFolderSettings={(id) => setFolderSettingsId(id)} onMoveClick={prepareMove} deleteSelected={() => { selectedIds.forEach(id => { const isNote = notes.some(n => n.id === id); executeDelete(isNote ? 'note' : 'folder', id); }); setIsSelectionMode(false); setSelectedIds(new Set()); }} toggleFavoriteSelected={toggleFavoriteSelected} toggleSelection={toggleSelection} appTheme={appTheme}
             onDuplicate={handleDuplicateSelected}
             onTabSwipe={handleTabSwipe}
-            // Trash Props
             onSelectAllTrash={handleSelectAllTrash}
-            onRestoreSelected={handleRestoreSelected}
-            onDeleteSelectedForever={handleDeleteSelectedForever}
+            onRestoreSelected={onRestoreSelected}
+            onDeleteSelectedForever={onDeleteSelectedForever}
           />
         )}
       </AnimatePresence>
@@ -1014,7 +997,8 @@ const Header = ({ activeTab, setActiveTab, toggleSettings, isSelectionMode, togg
             <AnimatePresence>
                 {showSearch && !isSelectionMode && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-4">
-                         <div className={`flex items-center px-4 py-3 rounded-xl ${isDark ? 'bg-zinc-800' : 'bg-white'} ring-1 ${isDark ? 'ring-zinc-700' : 'ring-zinc-200'} focus-within:ring-2 ${theme.ring}`}>
+                         {/* SEARCH BAR POLOS (No Ring) */}
+                         <div className={`flex items-center px-4 py-3 rounded-xl ${isDark ? 'bg-zinc-800' : 'bg-white'}`}>
                              <input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari catatan..." className="bg-transparent w-full outline-none font-medium" />
                              {searchQuery && <button onClick={() => setSearchQuery('')}><X size={16}/></button>}
                          </div>
@@ -1183,9 +1167,7 @@ const NoteCard = ({ note, onClick, onDelete, onRestore, inFolder, isDark, colors
   const previewText = note.content.replace(/<[^>]+>/g, ' ').trim() || "No content";
   const truncatedPreview = previewText.length > 150 ? previewText.substring(0, 150) + "..." : previewText;
 
-  // ENABLE DRAG EVEN IN FOLDER: Added logic to allow drag when inFolder is true, 
-  // but prevent it if it's maximized (Peeking) to avoid conflict with text selection usually, 
-  // but user requested swipe delete on 'mekar/peeking' too.
+  // UNLOCK SWIPE DELETE: Allow drag even in Folder or Peeking mode!
   const isDraggable = !isSelectionMode; 
 
   return (
