@@ -30,7 +30,7 @@ export interface Folder {
 
 // --- CONSTANTS & PHYSICS TUNING ---
 const springTransition = { type: "spring", stiffness: 600, damping: 40, mass: 0.5 }; 
-const quickCardTransition = { duration: 0.25, ease: "circOut" }; 
+const quickCardTransition = { duration: 0.3, ease: "circOut" }; // Sedikit diperlambat biar smooth tapi tegas
 
 export const APP_THEMES: Record<AppThemeColor, { bg: string, text: string, ring: string, hover: string, border: string, lightBg: string, tabActive: string, headerText: string }> = {
     default: { bg: 'bg-zinc-900', text: 'text-zinc-900', ring: 'ring-zinc-900', hover: 'hover:bg-zinc-100', border: 'border-zinc-200', lightBg: 'bg-[#f8f9fa]', tabActive: '!bg-zinc-900 !text-white', headerText: 'text-zinc-900 dark:text-white' },
@@ -213,12 +213,61 @@ const ToolbarButton = ({ onClick, icon: Icon, active = false, isDark, appTheme, 
     );
 }
 
-// --- ULTIMATE QUICK CARD (NAVIGATOR EDITION v3) ---
+// --- ULTIMATE QUICK CARD (MANUAL GESTURE EDITION) ---
 const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFullEditor, appTheme, isDark, onTabChange, isTrashTab, onRestoreAll, onEmptyTrash }: any) => {
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const theme = APP_THEMES[appTheme as AppThemeColor];
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // --- MANUAL GESTURE LOGIC ---
+    const touchStart = useRef<{x: number, y: number} | null>(null);
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        touchStart.current = {
+            x: e.targetTouches[0].clientX,
+            y: e.targetTouches[0].clientY
+        };
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (!touchStart.current) return;
+        
+        const touchEnd = {
+            x: e.changedTouches[0].clientX,
+            y: e.changedTouches[0].clientY
+        };
+
+        const deltaX = touchStart.current.x - touchEnd.x; // + = Swipe Kiri (Next), - = Swipe Kanan (Prev)
+        const deltaY = touchStart.current.y - touchEnd.y; // + = Swipe Atas, - = Swipe Bawah
+        
+        const absX = Math.abs(deltaX);
+        const absY = Math.abs(deltaY);
+        const threshold = 50; // Minimal geser 50px baru dianggep niat
+
+        // LOGIC DOMINANT AXIS
+        if (absX > absY && absX > threshold) {
+            // Horizontal Swipe -> Tab Change
+            if (deltaX > 0) {
+                // Swipe Left -> Next Tab
+                onTabChange(1);
+            } else {
+                // Swipe Right -> Prev Tab
+                onTabChange(-1);
+            }
+        } else if (absY > absX && absY > threshold) {
+            // Vertical Swipe -> Open/Close Card
+            if (deltaY > 0) {
+                // Swipe Up -> Open
+                setIsOpen(true);
+            } else {
+                // Swipe Down -> Close
+                setIsOpen(false);
+            }
+        }
+
+        touchStart.current = null; // Reset
+    };
 
     const handleQuickSave = () => {
         if (!title.trim() && !content.trim()) return;
@@ -237,23 +286,14 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
             initial={{ height: 95 }}
             animate={{ height: isOpen ? (isTrashTab ? 250 : '55vh') : 95 }}
             transition={quickCardTransition} 
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={0}
-            onDragEnd={(e, info) => {
-                if (info.offset.y < -30) setIsOpen(true);
-                if (info.offset.y > 50) setIsOpen(false);
-                
-                // HORIZONTAL SWIPE DETECTION (Gesture Pemicu)
-                if (Math.abs(info.offset.x) > 50) {
-                     if (info.offset.x < 0) onTabChange(1); // Swipe Left -> Next
-                     else onTabChange(-1); // Swipe Right -> Prev
-                }
-            }}
+            // REMOVE DRAG PROP HERE - WE USE MANUAL LOGIC
+            // Attach gesture listeners
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
             className={`fixed bottom-0 left-0 right-0 z-[80] rounded-t-[2rem] shadow-[0_-8px_30px_rgba(0,0,0,0.15)] border-t border-black/5 flex flex-col overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}
         >
-            {/* --- NAVIGATOR DOCK --- */}
-            <div className="w-full h-[95px] flex flex-col flex-none cursor-grab active:cursor-grabbing">
+            {/* --- NAVIGATOR DOCK (Touch Area Utama buat Swipe) --- */}
+            <div className="w-full h-[95px] flex flex-col flex-none cursor-grab active:cursor-grabbing select-none">
                 <AnimatePresence mode="wait">
                     {!isOpen ? (
                         <motion.div 
@@ -266,7 +306,7 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
 
                             {/* 2. BUTTONS ROW */}
                             {isTrashTab ? (
-                                <div className="flex gap-3 flex-1">
+                                <div className="flex gap-3 flex-1 pointer-events-auto">
                                     <button 
                                         onPointerDown={(e) => e.stopPropagation()} 
                                         onClick={(e) => { e.stopPropagation(); onRestoreAll(); }}
@@ -283,7 +323,7 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex gap-3 flex-1">
+                                <div className="flex gap-3 flex-1 pointer-events-auto">
                                     <button 
                                         onPointerDown={(e) => e.stopPropagation()} 
                                         onClick={(e) => { e.stopPropagation(); onCreateFolder(); }}
@@ -322,12 +362,12 @@ const QuickCreateCard = ({ isOpen, setIsOpen, onCreateNote, onCreateFolder, onFu
 
             {/* --- EXPANDED AREA --- */}
             {isTrashTab ? (
-                 <div className="flex-1 px-6 pb-6 flex flex-col gap-4 justify-center items-center opacity-70">
+                 <div className="flex-1 px-6 pb-6 flex flex-col gap-4 justify-center items-center opacity-70" onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                     <Trash2 size={48} className="opacity-50"/>
                     <p className="text-center text-sm font-medium">Use the buttons above to manage your trash.</p>
                  </div>
             ) : (
-                <div className="flex-1 px-6 pb-6 flex flex-col gap-4 overflow-hidden">
+                <div className="flex-1 px-6 pb-6 flex flex-col gap-4 overflow-hidden" onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                     <input
                         ref={inputRef}
                         value={title}
@@ -929,8 +969,8 @@ export default function App() {
             onDuplicate={handleDuplicateSelected}
             onTabSwipe={handleTabSwipe}
             onSelectAllTrash={handleSelectAllTrash}
-            onRestoreSelected={onRestoreSelected}
-            onDeleteSelectedForever={onDeleteSelectedForever}
+            onRestoreSelected={handleRestoreSelected}
+            onDeleteSelectedForever={handleDeleteSelectedForever}
           />
         )}
       </AnimatePresence>
